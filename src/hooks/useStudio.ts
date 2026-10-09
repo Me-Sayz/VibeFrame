@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { loadLayer, sanitizeName, uniqueName } from "@/lib/assets";
 import { renderCover } from "@/lib/cover";
 import { DEFAULT_PRESET, renderParams, type PresetId } from "@/lib/presets";
 import { isAbort, renderMp4 } from "@/lib/render";
 import { extractCode, validateCode } from "@/lib/validate";
 import type { LogEntry, LogLevel, MotionResult, Ratio } from "@/types";
+import type { AssetLayer } from "@/types/assets";
 
 const MAX_LOGS = 200;
 
@@ -36,6 +38,9 @@ export function useStudio() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [dark, setDark] = useState(false);
   const [progress, setProgress] = useState<RenderProgress | null>(null);
+  const [layers, setLayers] = useState<AssetLayer[]>([]);
+  const layersRef = useRef<AssetLayer[]>([]);
+  const queueRef = useRef<Promise<void>>(Promise.resolve());
   const runCounter = useRef(0);
   const logCounter = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
@@ -62,6 +67,60 @@ export function useStudio() {
 
   const clearLogs = useCallback(() => setLogs([]), []);
 
+  const commitLayers = useCallback((next: AssetLayer[]) => {
+    layersRef.current = next;
+    setLayers(next);
+  }, []);
+
+  const addFiles = useCallback(
+    (files: File[]) => {
+      const run = async () => {
+        for (const file of files) {
+          try {
+            const layer = await loadLayer(file, layersRef.current.map((l) => l.name));
+            commitLayers([...layersRef.current, layer]);
+            log("info", `Layer ditambah: ${layer.name} (${layer.width}×${layer.height})`);
+          } catch (e) {
+            fail(e instanceof Error ? e.message : String(e));
+          }
+        }
+      };
+      queueRef.current = queueRef.current.then(run);
+    },
+    [commitLayers, fail, log]
+  );
+
+  const removeLayer = useCallback(
+    (id: string) => commitLayers(layersRef.current.filter((l) => l.id !== id)),
+    [commitLayers]
+  );
+
+  const renameLayer = useCallback(
+    (id: string, raw: string) => {
+      const others = layersRef.current.filter((l) => l.id !== id).map((l) => l.name);
+      const name = uniqueName(sanitizeName(raw), others);
+      commitLayers(layersRef.current.map((l) => (l.id === id ? { ...l, name } : l)));
+    },
+    [commitLayers]
+  );
+
+  const setLayerNote = useCallback(
+    (id: string, note: string) => commitLayers(layersRef.current.map((l) => (l.id === id ? { ...l, note } : l))),
+    [commitLayers]
+  );
+
+  const moveLayer = useCallback(
+    (id: string, dir: -1 | 1) => {
+      const list = [...layersRef.current];
+      const i = list.findIndex((l) => l.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= list.length) return;
+      [list[i], list[j]] = [list[j], list[i]];
+      commitLayers(list);
+    },
+    [commitLayers]
+  );
+
   const toggleDark = useCallback(() => {
     const next = document.documentElement.dataset.theme !== "dark";
     document.documentElement.dataset.theme = next ? "dark" : "light";
@@ -81,9 +140,9 @@ export function useStudio() {
     setError(null);
     setCode(clean);
     runCounter.current += 1;
-    setResult({ code: clean, ratio, duration, runId: runCounter.current });
-    log("info", `Render kode: ${ratio}, ${duration} detik`);
-  }, [code, ratio, duration, fail, log]);
+    setResult({ code: clean, ratio, duration, runId: runCounter.current, assets: layers });
+    log("info", `Render kode: ${ratio}, ${duration} detik, ${layers.length} layer`);
+  }, [code, ratio, duration, layers, fail, log]);
 
   const exportMp4 = useCallback(async () => {
     if (!result || abortRef.current) return;
@@ -101,6 +160,7 @@ export function useStudio() {
         fps,
         scale,
         bitrate,
+        assets: result.assets,
         signal: controller.signal,
         onProgress: (done, total) => setProgress({ done, total }),
       });
@@ -124,7 +184,7 @@ export function useStudio() {
     setCoverBusy(true);
     log("info", `Cover mulai: detik ${coverAt.toFixed(2)}, ${width}×${height}`);
     try {
-      const out = await renderCover({ code: result.code, ratio: result.ratio, time: coverAt, scale });
+      const out = await renderCover({ code: result.code, ratio: result.ratio, time: coverAt, scale, assets: result.assets });
       saveBlob(
         out.blob,
         `cover-${result.ratio.replace(":", "x")}-${out.width}x${out.height}-${coverAt.toFixed(2)}s-${Date.now()}.png`
@@ -160,6 +220,7 @@ export function useStudio() {
   return {
     ratio, setRatio, duration, setDuration, fps, setFps, preset, setPreset,
     code, setCode, result,
+    layers, addFiles, removeLayer, renameLayer, setLayerNote, moveLayer,
     error, dismissError, onPlayerError,
     logs, clearLogs,
     renderCode, pasteFromClipboard,
