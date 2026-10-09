@@ -1,95 +1,164 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client";
+
+import { useState } from "react";
+import CodeHub from "@/components/CodeHub";
+import ConfigTabs from "@/components/ConfigTabs";
+import FloatingPanel from "@/components/FloatingPanel";
+import PromptModal from "@/components/PromptModal";
+import Viewport from "@/components/Viewport";
+import { btn, card } from "@/components/ui";
+import { usePlayer } from "@/hooks/usePlayer";
+import { useStudio } from "@/hooks/useStudio";
+import { renderParams } from "@/lib/presets";
 
 export default function Home() {
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>src/app/page.tsx</code>.
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const studio = useStudio();
+  const player = usePlayer(studio.result, studio.onPlayerError);
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [terminalOpen, setTerminalOpen] = useState(false);
 
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
+  const view = studio.result ?? { ratio: studio.ratio, duration: studio.duration };
+  const size = renderParams(view.ratio, studio.preset);
+  const percent = studio.progress ? Math.round((studio.progress.done / studio.progress.total) * 100) : 0;
+
+  return (
+    <main className="mx-auto max-w-[1400px] p-4 lg:p-8">
+      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg border-[3px] border-ink bg-sun text-2xl text-black shadow-brut">
+            ▶
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold leading-none tracking-tight">MOTIONLY</h1>
+            <p className="text-xs font-bold opacity-70">Motion Studio · tempel kode, lihat animasinya</p>
+          </div>
         </div>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setPromptOpen(true)}
+            aria-haspopup="dialog"
+            className={`${btn.smallSun} !px-4 !py-2 !text-sm`}
+          >
+            📝 Prompt AI
+          </button>
+          <button
+            onClick={() => setTerminalOpen((v) => !v)}
+            aria-pressed={terminalOpen}
+            className={`${terminalOpen ? btn.smallSun : btn.small} !px-4 !py-2 !text-sm`}
+          >
+            🖥️ Terminal
+          </button>
+          <button onClick={studio.toggleDark} className={`${btn.small} !px-4 !py-2 !text-sm`} aria-label="Ganti tema">
+            {studio.dark ? "☀️ Terang" : "🌙 Gelap"}
+          </button>
+        </div>
+      </header>
+
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+        <div className="w-full shrink-0 lg:w-[340px]">
+          <ConfigTabs
+            duration={studio.duration}
+            onDuration={studio.setDuration}
+            ratio={studio.ratio}
+            onRatio={studio.setRatio}
+            fps={studio.fps}
+            onFps={studio.setFps}
+            preset={studio.preset}
+            onPreset={studio.setPreset}
+            rendering={studio.rendering}
+            logs={studio.logs}
+            onClearLogs={studio.clearLogs}
+            coverSource={studio.result ? { code: studio.result.code, ratio: studio.result.ratio } : null}
+            coverTime={studio.coverAt}
+            coverMax={studio.coverMax}
+            playerTime={player.time}
+            coverBusy={studio.coverBusy}
+            onCoverTime={studio.setCoverTime}
+            onSaveCover={studio.saveCover}
           />
-          Learn
-        </a>
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+        </div>
+
+        <section className="min-w-0 flex-1 space-y-6">
+          <Viewport
+            containerRef={player.containerRef}
+            hasResult={!!studio.result}
+            ratio={view.ratio}
+            duration={view.duration}
+            loadingLabel={null}
+            playing={player.playing}
+            time={player.time}
+            onToggle={player.toggle}
+            onSeek={player.seek}
+            onRestart={player.restart}
           />
-          Examples
-        </a>
-        <a
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
+
+          <div className={`${card} space-y-3 p-3`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="font-mono text-xs">
+                MP4 · {size.width}×{size.height} · {studio.fps} fps · {view.duration} detik
+              </p>
+              {studio.rendering ? (
+                <button onClick={studio.cancelRender} className={btn.small}>
+                  ✕ Batal
+                </button>
+              ) : (
+                <button onClick={studio.exportMp4} disabled={!studio.result} className={btn.medium}>
+                  ⬇ Render MP4
+                </button>
+              )}
+            </div>
+
+            {studio.progress && (
+              <div>
+                <div className="h-6 overflow-hidden rounded-lg border-[3px] border-ink bg-card">
+                  <div className="h-full bg-lime transition-all" style={{ width: `${percent}%` }} />
+                </div>
+                <p className="mt-1 text-xs font-bold">
+                  Merender frame {studio.progress.done} / {studio.progress.total} ({percent}%)
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+
+      {terminalOpen && (
+        <FloatingPanel title="Terminal · kode draw()" storageKey="panel:terminal" onClose={() => setTerminalOpen(false)}>
+          <CodeHub
+            code={studio.code}
+            onChange={studio.setCode}
+            onRender={studio.renderCode}
+            onPaste={studio.pasteFromClipboard}
+            disabled={studio.rendering}
           />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+        </FloatingPanel>
+      )}
+
+      {promptOpen && (
+        <PromptModal
+          duration={studio.duration}
+          ratio={studio.ratio}
+          onDuration={studio.setDuration}
+          onRatio={studio.setRatio}
+          onClose={() => setPromptOpen(false)}
+        />
+      )}
+
+      {studio.error && (
+        <div
+          role="alert"
+          className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-md items-start gap-3 rounded-xl border-[3px] border-ink bg-pink p-4 text-sm font-bold text-black shadow-brut-lg"
+        >
+          <p className="min-w-0 flex-1 break-words">{studio.error}</p>
+          <button
+            onClick={studio.dismissError}
+            aria-label="Tutup"
+            className="rounded border-2 border-black px-1.5 leading-none hover:bg-black hover:text-pink"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+    </main>
   );
 }
