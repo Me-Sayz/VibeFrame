@@ -45,6 +45,7 @@ interface Props {
   onLayerNote: (id: string, note: string) => void;
   onMoveLayer: (id: string, dir: -1 | 1) => void;
   onLayerCutout: (id: string, cutout: Cutout) => void;
+  onUseAi: () => void;
 }
 
 const stamp = (t: number) => new Date(t).toTimeString().slice(0, 8);
@@ -211,6 +212,7 @@ export default function ConfigTabs(p: Props) {
             onNote={p.onLayerNote}
             onMove={p.onMoveLayer}
             onCutout={p.onLayerCutout}
+            onUseAi={p.onUseAi}
           />
         )}
 

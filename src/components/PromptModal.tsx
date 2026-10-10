@@ -22,10 +22,11 @@ interface Props {
   onDuration: (value: number) => void;
   onRatio: (value: Ratio) => void;
   layers?: PromptLayer[];
+  onDropLayers?: () => void;
   onClose: () => void;
 }
 
-export default function PromptModal({ duration, ratio, onDuration, onRatio, layers = [], onClose }: Props) {
+export default function PromptModal({ duration, ratio, onDuration, onRatio, layers = [], onDropLayers, onClose }: Props) {
   const base = useId();
   const [tab, setTab] = usePersistentState<TabId>("prompt:tab", "template", isTab);
   const active = TABS.find((t) => t.id === tab) ?? TABS[0];
@@ -65,9 +66,18 @@ export default function PromptModal({ duration, ratio, onDuration, onRatio, laye
       </div>
       <p className="mb-4 text-xs opacity-70">{active.hint}</p>
       {layers.length > 0 && (
-        <p className="mb-4 rounded-lg border-[3px] border-ink bg-lime p-2 text-xs font-bold text-black">
-          {layers.length} layer gambar ikut masuk ke prompt.
-        </p>
+        <div className="mb-4 flex items-center justify-between gap-2 rounded-lg border-[3px] border-ink bg-lime p-2 text-xs font-bold text-black">
+          <p>{layers.length} layer gambar ikut masuk ke prompt.</p>
+          {onDropLayers && (
+            <button
+              onClick={onDropLayers}
+              aria-label="Buang layer gambar dari prompt"
+              className="rounded border-2 border-black px-1.5 leading-none hover:bg-black hover:text-lime"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       )}
 
       <div role="tabpanel" id={`${base}-panel`} aria-labelledby={`${base}-${active.id}`}>

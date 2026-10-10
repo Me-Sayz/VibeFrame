@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import CodeHub from "@/components/CodeHub";
 import ConfigTabs from "@/components/ConfigTabs";
 import FloatingPanel from "@/components/FloatingPanel";
+import HistoryModal from "@/components/HistoryModal";
 import PromptModal from "@/components/PromptModal";
 import Viewport from "@/components/Viewport";
 import { btn, card } from "@/components/ui";
@@ -15,7 +16,9 @@ export default function Home() {
   const studio = useStudio();
   const player = usePlayer(studio.result, studio.onPlayerError);
   const [promptOpen, setPromptOpen] = useState(false);
+  const [promptWithLayers, setPromptWithLayers] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const layerNames = useMemo(() => studio.layers.map((l) => l.name), [studio.layers]);
 
   const view = studio.result ?? { ratio: studio.ratio, duration: studio.duration };
@@ -30,13 +33,16 @@ export default function Home() {
             ▶
           </div>
           <div>
-            <h1 className="text-2xl font-bold leading-none tracking-tight">MOTIONLY</h1>
-            <p className="text-xs font-bold opacity-70">Motion Studio · tempel kode, lihat animasinya</p>
+            <h1 className="text-2xl font-bold leading-none tracking-tight">VIBEFRAME</h1>
+            <p className="text-xs font-bold opacity-70">VibeFrame · tempel kode, lihat animasinya</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => setPromptOpen(true)}
+            onClick={() => {
+              setPromptWithLayers(false);
+              setPromptOpen(true);
+            }}
             aria-haspopup="dialog"
             className={`${btn.smallSun} !px-4 !py-2 !text-sm`}
           >
@@ -48,6 +54,13 @@ export default function Home() {
             className={`${terminalOpen ? btn.smallSun : btn.small} !px-4 !py-2 !text-sm`}
           >
             🖥️ Terminal
+          </button>
+          <button
+            onClick={() => setHistoryOpen(true)}
+            aria-haspopup="dialog"
+            className={`${btn.small} !px-4 !py-2 !text-sm`}
+          >
+            🕘 Riwayat
           </button>
           <button onClick={studio.toggleDark} className={`${btn.small} !px-4 !py-2 !text-sm`} aria-label="Ganti tema">
             {studio.dark ? "☀️ Terang" : "🌙 Gelap"}
@@ -83,6 +96,10 @@ export default function Home() {
             onLayerNote={studio.setLayerNote}
             onMoveLayer={studio.moveLayer}
             onLayerCutout={studio.setLayerCutout}
+            onUseAi={() => {
+              setPromptWithLayers(true);
+              setPromptOpen(true);
+            }}
           />
         </div>
 
@@ -149,8 +166,24 @@ export default function Home() {
           ratio={studio.ratio}
           onDuration={studio.setDuration}
           onRatio={studio.setRatio}
-          layers={studio.layers}
+          layers={promptWithLayers ? studio.layers : []}
+          onDropLayers={() => setPromptWithLayers(false)}
           onClose={() => setPromptOpen(false)}
+        />
+      )}
+
+      {historyOpen && (
+        <HistoryModal
+          items={studio.history.items}
+          disabled={studio.rendering}
+          onOpen={(entry) => {
+            studio.openHistory(entry);
+            setHistoryOpen(false);
+          }}
+          onRename={studio.history.rename}
+          onRemove={studio.history.remove}
+          onClear={studio.history.clear}
+          onClose={() => setHistoryOpen(false)}
         />
       )}
 

@@ -5,9 +5,10 @@ import { loadLayer, sanitizeName, uniqueName, withCutout } from "@/lib/assets";
 import { renderCover } from "@/lib/cover";
 import { DEFAULT_PRESET, renderParams, type PresetId } from "@/lib/presets";
 import { isAbort, renderMp4 } from "@/lib/render";
-import { extractCode, validateCode } from "@/lib/validate";
+import { extractCode, usedLayers, validateCode } from "@/lib/validate";
 import type { LogEntry, LogLevel, MotionResult, Ratio } from "@/types";
 import type { AssetLayer, Cutout } from "@/types/assets";
+import { useHistory, type HistoryEntry } from "./useHistory";
 
 const MAX_LOGS = 200;
 
@@ -42,6 +43,8 @@ export function useStudio() {
   const layersRef = useRef<AssetLayer[]>([]);
   const queueRef = useRef<Promise<void>>(Promise.resolve());
   const cutoutToken = useRef(new Map<string, number>());
+  const history = useHistory();
+  const addHistory = history.add;
   const runCounter = useRef(0);
   const logCounter = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
@@ -151,6 +154,18 @@ export function useStudio() {
     setDark(next);
   }, []);
 
+  const commitRender = useCallback(
+    (clean: string, r: Ratio, d: number) => {
+      setError(null);
+      setCode(clean);
+      runCounter.current += 1;
+      setResult({ code: clean, ratio: r, duration: d, runId: runCounter.current, assets: layers });
+      addHistory({ code: clean, ratio: r, duration: d, layers: usedLayers(clean) });
+      log("info", `Render kode: ${r}, ${d} detik, ${layers.length} layer`);
+    },
+    [layers, addHistory, log]
+  );
+
   const renderCode = useCallback(() => {
     const clean = extractCode(code);
     const problem = validateCode(clean, layers.map((l) => l.name));
@@ -158,12 +173,23 @@ export function useStudio() {
       fail(problem);
       return;
     }
-    setError(null);
-    setCode(clean);
-    runCounter.current += 1;
-    setResult({ code: clean, ratio, duration, runId: runCounter.current, assets: layers });
-    log("info", `Render kode: ${ratio}, ${duration} detik, ${layers.length} layer`);
-  }, [code, ratio, duration, layers, fail, log]);
+    commitRender(clean, ratio, duration);
+  }, [code, ratio, duration, layers, fail, commitRender]);
+
+  const openHistory = useCallback(
+    (entry: HistoryEntry) => {
+      setRatio(entry.ratio);
+      setDuration(entry.duration);
+      setCode(entry.code);
+      const problem = validateCode(entry.code, layers.map((l) => l.name));
+      if (problem) {
+        fail(problem);
+        return;
+      }
+      commitRender(entry.code, entry.ratio, entry.duration);
+    },
+    [layers, fail, commitRender]
+  );
 
   const exportMp4 = useCallback(async () => {
     if (!result || abortRef.current) return;
@@ -244,7 +270,7 @@ export function useStudio() {
     layers, addFiles, removeLayer, renameLayer, setLayerNote, moveLayer, setLayerCutout,
     error, dismissError, onPlayerError,
     logs, clearLogs,
-    renderCode, pasteFromClipboard,
+    renderCode, pasteFromClipboard, history, openHistory,
     progress, rendering: progress !== null, exportMp4, cancelRender,
     coverAt, coverMax, setCoverTime, coverBusy, saveCover,
     dark, toggleDark,

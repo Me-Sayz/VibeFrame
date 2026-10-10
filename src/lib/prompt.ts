@@ -8,8 +8,8 @@ export const NOTE_MAX = 80;
 
 const INTRO_TITLE =
   "Kamu adalah Motion Graphics Designer profesional dan JavaScript Canvas API Developer untuk video microstock premium.";
-const INTRO = [INTRO_TITLE, "Buat kode JavaScript Canvas lengkap untuk Motion Studio berdasarkan pengaturan berikut:"];
-const INTRO_DIRECT = [INTRO_TITLE, "Buat kode JavaScript Canvas lengkap untuk Motion Studio berdasarkan deskripsi berikut:"];
+const INTRO = [INTRO_TITLE, "Buat kode JavaScript Canvas lengkap untuk VibeFrame berdasarkan pengaturan berikut:"];
+const INTRO_DIRECT = [INTRO_TITLE, "Buat kode JavaScript Canvas lengkap untuk VibeFrame berdasarkan deskripsi berikut:"];
 
 const VISUAL_RULES = [
   "Visual harus premium, modern, profesional, dan komersial.",

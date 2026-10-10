@@ -14,6 +14,7 @@ interface Props {
   onNote: (id: string, note: string) => void;
   onMove: (id: string, dir: -1 | 1) => void;
   onCutout: (id: string, cutout: Cutout) => void;
+  onUseAi: () => void;
 }
 
 const THUMB = 56;
@@ -119,7 +120,7 @@ function CutoutControls({ layer, onCutout }: { layer: AssetLayer; onCutout: (id:
   );
 }
 
-export default function AssetsPanel({ layers, onAdd, onRemove, onRename, onNote, onMove, onCutout }: Props) {
+export default function AssetsPanel({ layers, onAdd, onRemove, onRename, onNote, onMove, onCutout, onUseAi }: Props) {
   const inputId = useId();
   const [over, setOver] = useState(false);
   const full = layers.length >= MAX_LAYERS;
@@ -230,6 +231,9 @@ export default function AssetsPanel({ layers, onAdd, onRemove, onRename, onNote,
               </li>
             ))}
           </ul>
+          <button onClick={onUseAi} className={`${btn.medium} w-full`}>
+            ✨ Gunakan AI ({layers.length} layer)
+          </button>
         </>
       )}
     </div>

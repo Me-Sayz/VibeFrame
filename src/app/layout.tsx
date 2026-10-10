@@ -6,7 +6,7 @@ const sans = Space_Grotesk({ subsets: ["latin"], variable: "--font-sans" });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  title: "Motionly — Motion Studio",
+  title: "VibeFrame — Motion Graphics Studio",
   description: "Tema → animasi Canvas, real-time.",
 };
 
