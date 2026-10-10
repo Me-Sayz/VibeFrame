@@ -23,10 +23,12 @@ interface Props {
   onRatio: (value: Ratio) => void;
   layers?: PromptLayer[];
   onDropLayers?: () => void;
+  onGenerate?: (prompt: string) => void;
+  generating?: boolean;
   onClose: () => void;
 }
 
-export default function PromptModal({ duration, ratio, onDuration, onRatio, layers = [], onDropLayers, onClose }: Props) {
+export default function PromptModal({ duration, ratio, onDuration, onRatio, layers = [], onDropLayers, onGenerate, generating = false, onClose }: Props) {
   const base = useId();
   const [tab, setTab] = usePersistentState<TabId>("prompt:tab", "template", isTab);
   const active = TABS.find((t) => t.id === tab) ?? TABS[0];
@@ -82,9 +84,25 @@ export default function PromptModal({ duration, ratio, onDuration, onRatio, laye
 
       <div role="tabpanel" id={`${base}-panel`} aria-labelledby={`${base}-${active.id}`}>
         {active.id === "template" ? (
-          <PromptBuilder duration={duration} ratio={ratio} onDuration={onDuration} onRatio={onRatio} layers={layers} />
+          <PromptBuilder
+            duration={duration}
+            ratio={ratio}
+            onDuration={onDuration}
+            onRatio={onRatio}
+            layers={layers}
+            onGenerate={onGenerate}
+            busy={generating}
+          />
         ) : (
-          <DirectPrompt duration={duration} ratio={ratio} onDuration={onDuration} onRatio={onRatio} layers={layers} />
+          <DirectPrompt
+            duration={duration}
+            ratio={ratio}
+            onDuration={onDuration}
+            onRatio={onRatio}
+            layers={layers}
+            onGenerate={onGenerate}
+            busy={generating}
+          />
         )}
       </div>
     </Modal>

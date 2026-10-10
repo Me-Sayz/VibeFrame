@@ -12,13 +12,15 @@ interface Props {
      onDuration: (value: number) => void;
      layers?: PromptLayer[];
   onRatio: (value: Ratio) => void;
+  onGenerate?: (prompt: string) => void;
+  busy?: boolean;
 }
 
 type CopyState = "idle" | "copied" | "failed";
 
 const isString = (v: unknown) => typeof v === "string";
 
-export default function DirectPrompt({ duration, ratio, onDuration, onRatio, layers }: Props) {
+export default function DirectPrompt({ duration, ratio, onDuration, onRatio, layers, onGenerate, busy }: Props) {
   const [idea, setIdea] = usePersistentState("prompt:idea", "", isString);
   const [copyState, setCopyState] = useState<CopyState>("idle");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -113,6 +115,12 @@ export default function DirectPrompt({ duration, ratio, onDuration, onRatio, lay
       <button onClick={copy} disabled={!valid} className={btn.primary}>
         {copyState === "copied" ? "✓ Tersalin" : "📋 Salin prompt"}
       </button>
+
+      {onGenerate && (
+        <button onClick={() => onGenerate(prompt)} disabled={!valid || busy} className={btn.secondary}>
+          {busy ? "⏳ AI sedang membuat…" : "✨ Buat Animasi (AI)"}
+        </button>
+      )}
 
       {copyState === "failed" && (
         <p role="status" className="text-xs font-bold">

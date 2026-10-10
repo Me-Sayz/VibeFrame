@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { loadLayer, sanitizeName, uniqueName, withCutout } from "@/lib/assets";
+import { requestAnimation } from "@/lib/ai";
 import { renderCover } from "@/lib/cover";
 import { DEFAULT_PRESET, renderParams, type PresetId } from "@/lib/presets";
 import { isAbort, renderMp4 } from "@/lib/render";
@@ -48,12 +49,15 @@ export function useStudio() {
   const runCounter = useRef(0);
   const logCounter = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  const aiAbortRef = useRef<AbortController | null>(null);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     setDark(document.documentElement.dataset.theme === "dark");
   }, []);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(() => () => aiAbortRef.current?.abort(), []);
 
   const log = useCallback((level: LogLevel, text: string) => {
     logCounter.current += 1;
@@ -246,6 +250,40 @@ export function useStudio() {
 
   const cancelRender = useCallback(() => abortRef.current?.abort(), []);
 
+  const generate = useCallback(
+    async (prompt: string): Promise<"ok" | "rejected" | "failed"> => {
+      if (aiAbortRef.current) return "failed";
+      const controller = new AbortController();
+      aiAbortRef.current = controller;
+      setGenerating(true);
+      setError(null);
+      log("info", `Buat Animasi (AI): ${ratio}, ${duration} detik`);
+      try {
+        const { text, model } = await requestAnimation(prompt, controller.signal);
+        if (model) log("info", `Model AI: ${model}`);
+        const clean = extractCode(text);
+        setCode(clean);
+        const problem = validateCode(clean, layers.map((l) => l.name));
+        if (problem) {
+          fail(`Kode dari AI ditolak: ${problem} Kodenya sudah dimasukkan ke Terminal untuk dicek.`);
+          return "rejected";
+        }
+        commitRender(clean, ratio, duration);
+        return "ok";
+      } catch (e) {
+        if (isAbort(e)) log("info", "Buat Animasi dibatalkan");
+        else fail(e instanceof Error ? e.message : String(e));
+        return "failed";
+      } finally {
+        aiAbortRef.current = null;
+        setGenerating(false);
+      }
+    },
+    [ratio, duration, layers, fail, log, commitRender]
+  );
+
+  const cancelGenerate = useCallback(() => aiAbortRef.current?.abort(), []);
+
   const pasteFromClipboard = useCallback(async () => {
     try {
       setCode(await navigator.clipboard.readText());
@@ -271,6 +309,7 @@ export function useStudio() {
     error, dismissError, onPlayerError,
     logs, clearLogs,
     renderCode, pasteFromClipboard, history, openHistory,
+    generating, generate, cancelGenerate,
     progress, rendering: progress !== null, exportMp4, cancelRender,
     coverAt, coverMax, setCoverTime, coverBusy, saveCover,
     dark, toggleDark,

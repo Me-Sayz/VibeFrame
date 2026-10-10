@@ -168,6 +168,12 @@ export default function Home() {
           onRatio={studio.setRatio}
           layers={promptWithLayers ? studio.layers : []}
           onDropLayers={() => setPromptWithLayers(false)}
+          generating={studio.generating}
+          onGenerate={async (prompt) => {
+            setPromptOpen(false);
+            const outcome = await studio.generate(prompt);
+            if (outcome === "rejected") setTerminalOpen(true);
+          }}
           onClose={() => setPromptOpen(false)}
         />
       )}
@@ -185,6 +191,18 @@ export default function Home() {
           onClear={studio.history.clear}
           onClose={() => setHistoryOpen(false)}
         />
+      )}
+
+      {studio.generating && (
+        <div
+          role="status"
+          className="fixed bottom-4 left-4 z-40 flex items-center gap-3 rounded-xl border-[3px] border-ink bg-sun p-3 text-sm font-bold text-black shadow-brut"
+        >
+          <span>✨ AI sedang membuat animasi…</span>
+          <button onClick={studio.cancelGenerate} className={btn.small}>
+            ✕ Batal
+          </button>
+        </div>
       )}
 
       {studio.error && (
