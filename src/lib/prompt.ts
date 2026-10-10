@@ -4,6 +4,7 @@ export const THEME_MIN = 3;
 export const THEME_MAX = 500;
 export const IDEA_MIN = 3;
 export const IDEA_MAX = 2000;
+export const NOTE_MAX = 80;
 
 const INTRO_TITLE =
   "Kamu adalah Motion Graphics Designer profesional dan JavaScript Canvas API Developer untuk video microstock premium.";
@@ -43,6 +44,40 @@ const CODE_RULES_BEFORE_SIGNATURE = [
 ];
 
 const SIGNATURE = ["function draw(ctx, time, width, height) {", "// kode animasi di sini", "}"];
+const SIGNATURE_ASSETS = ["function draw(ctx, time, width, height, assets) {", "// kode animasi di sini", "}"];
+
+export interface PromptLayer {
+  name: string;
+  note: string;
+  width: number;
+  height: number;
+}
+
+export function cleanNote(note: string): string {
+  return note.replace(/\s+/g, " ").replace(/[[\]]/g, "").trim().slice(0, NOTE_MAX);
+}
+
+function orientation(w: number, h: number): string {
+  if (w === h) return "persegi";
+  return w > h ? "lebar" : "tinggi";
+}
+
+function layersSection(layers: PromptLayer[]): string[] {
+  const lines = layers.map((l) => {
+    const note = cleanNote(l.note);
+    return `· assets.${l.name}: ${l.width}×${l.height} px, ${orientation(l.width, l.height)}${note ? ` — ${note}` : ""}`;
+  });
+  return [
+    "LAYER GAMBAR (urutan dari paling belakang ke paling depan):",
+    ...lines,
+    "Cara memakai layer:",
+    "· Setiap layer sudah berupa gambar siap pakai di parameter assets. Gambar dengan ctx.drawImage(assets.nama, x, y, lebar, tinggi).",
+    "· Jangan memuat gambar sendiri (tanpa new Image, fetch, atau URL). Pakai hanya layer di atas.",
+    "· Pertahankan rasio asli tiap layer saat menggambar, jangan dipanjangkan atau dipipihkan.",
+    "· Gerakkan tiap layer secara terpisah (posisi, skala, rotasi, transparansi) sesuai animasi. Semua gerakan dihitung dari parameter time.",
+    "· Gunakan semua layer yang disediakan dan gambar sesuai urutan dari belakang ke depan.",
+  ];
+}
 
 const CODE_RULES_AFTER_SIGNATURE = [
   "Parameter time menggunakan detik, bukan milidetik.",
@@ -60,18 +95,49 @@ const EXTRA_CODE = [
 
 const bullets = (rules: string[]) => rules.map((r) => `· ${r}`);
 
-function rulesSection(): string[] {
+function withLayers(rules: string[], swaps: [string, string][]): string[] {
+  return rules.map((r) => swaps.find(([from]) => from === r)?.[1] ?? r);
+}
+
+function rulesSection(layers: PromptLayer[] = []): string[] {
+  const has = layers.length > 0;
+  const visual = has
+    ? withLayers(VISUAL_RULES, [
+        [
+          "Jangan gunakan logo, brand, watermark, karakter berlisensi, atau asset eksternal.",
+          "Jangan tambahkan logo, brand, watermark, atau karakter berlisensi selain yang ada di layer gambar.",
+        ],
+      ])
+    : VISUAL_RULES;
+  const before = has
+    ? withLayers(CODE_RULES_BEFORE_SIGNATURE, [
+        [
+          "Jangan gunakan gambar, logo, font eksternal, atau asset eksternal.",
+          "Jangan gunakan font eksternal atau asset dari luar. Gambar hanya boleh berasal dari layer gambar yang disediakan.",
+        ],
+        [
+          "Semua elemen visual harus dibuat langsung dengan Canvas API.",
+          "Semua elemen visual selain layer gambar harus dibuat langsung dengan Canvas API.",
+        ],
+      ])
+    : CODE_RULES_BEFORE_SIGNATURE;
+  const after = has
+    ? withLayers(CODE_RULES_AFTER_SIGNATURE, [
+        ["Background harus dibuat dengan Canvas.", "Background dibuat dengan Canvas, kecuali ada layer gambar yang dipakai sebagai background."],
+      ])
+    : CODE_RULES_AFTER_SIGNATURE;
   return [
+    ...(has ? [...layersSection(layers), ""] : []),
     "ATURAN VISUAL:",
-    ...bullets(VISUAL_RULES),
+    ...bullets(visual),
     "",
     "ATURAN MOTION:",
     ...bullets([...MOTION_RULES, ...EXTRA_MOTION]),
     "",
     "ATURAN KODE:",
-    ...bullets(CODE_RULES_BEFORE_SIGNATURE),
-    ...SIGNATURE,
-    ...bullets([...CODE_RULES_AFTER_SIGNATURE, ...EXTRA_CODE]),
+    ...bullets(before),
+    ...(has ? SIGNATURE_ASSETS : SIGNATURE),
+    ...bullets([...after, ...EXTRA_CODE]),
   ];
 }
 
@@ -102,6 +168,7 @@ export function isIdeaValid(idea: string): boolean {
 export interface PromptInput extends PromptSettings {
   duration: number;
   ratio: Ratio;
+  layers?: PromptLayer[];
 }
 
 export function buildPrompt(p: PromptInput): string {
@@ -121,7 +188,7 @@ export function buildPrompt(p: PromptInput): string {
     "KONSEP VISUAL:",
     `[${p.concept}]`,
     "",
-    ...rulesSection(),
+    ...rulesSection(p.layers),
   ].join("\n");
 }
 
@@ -129,6 +196,7 @@ export interface DirectInput {
   idea: string;
   duration: number;
   ratio: Ratio;
+  layers?: PromptLayer[];
 }
 
 export function buildDirectPrompt(p: DirectInput): string {
@@ -142,6 +210,6 @@ export function buildDirectPrompt(p: DirectInput): string {
     "RASIO:",
     `[${p.ratio}]`,
     "",
-    ...rulesSection(),
+    ...rulesSection(p.layers),
   ].join("\n");
 }

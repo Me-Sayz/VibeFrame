@@ -1,4 +1,4 @@
-import { MAX_FILE_MB, MAX_LAYERS, MAX_SIDE, type AssetLayer } from "@/types/assets";
+import { DEFAULT_TOLERANCE, MAX_FILE_MB, MAX_LAYERS, MAX_SIDE, type AssetLayer, type Cutout } from "@/types/assets";
 
 const RASTER = ["image/png", "image/jpeg", "image/webp"];
 const SVG = "image/svg+xml";
@@ -32,6 +32,113 @@ function newId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+export function cutoutPixels(data: Uint8ClampedArray, w: number, h: number, tolerance: number): number {
+  const n = w * h;
+  const thr = Math.max(0, tolerance) * 2.55;
+  const thr2 = thr * thr;
+
+  const bins = new Map<number, { c: number; r: number; g: number; b: number }>();
+  const sample = (x: number, y: number) => {
+    const i = (y * w + x) * 4;
+    if (data[i + 3] < 128) return;
+    const key = ((data[i] >> 4) << 8) | ((data[i + 1] >> 4) << 4) | (data[i + 2] >> 4);
+    const bin = bins.get(key) ?? { c: 0, r: 0, g: 0, b: 0 };
+    bin.c += 1;
+    bin.r += data[i];
+    bin.g += data[i + 1];
+    bin.b += data[i + 2];
+    bins.set(key, bin);
+  };
+  for (let x = 0; x < w; x++) {
+    sample(x, 0);
+    sample(x, h - 1);
+  }
+  for (let y = 1; y < h - 1; y++) {
+    sample(0, y);
+    sample(w - 1, y);
+  }
+  let best: { c: number; r: number; g: number; b: number } | null = null;
+  for (const bin of bins.values()) if (!best || bin.c > best.c) best = bin;
+  const bg = best ? [best.r / best.c, best.g / best.c, best.b / best.c] : null;
+
+  const dist2 = (p: number) => {
+    if (!bg) return Infinity;
+    const i = p * 4;
+    const dr = data[i] - bg[0];
+    const dg = data[i + 1] - bg[1];
+    const db = data[i + 2] - bg[2];
+    return dr * dr + dg * dg + db * db;
+  };
+  const isBg = (p: number) => data[p * 4 + 3] < 16 || dist2(p) <= thr2;
+
+  const gone = new Uint8Array(n);
+  const stack = new Int32Array(n);
+  let top = 0;
+  const push = (p: number) => {
+    if (gone[p] || !isBg(p)) return;
+    gone[p] = 1;
+    stack[top++] = p;
+  };
+  for (let x = 0; x < w; x++) {
+    push(x);
+    push((h - 1) * w + x);
+  }
+  for (let y = 1; y < h - 1; y++) {
+    push(y * w);
+    push(y * w + w - 1);
+  }
+  while (top > 0) {
+    const p = stack[--top];
+    const x = p % w;
+    if (x > 0) push(p - 1);
+    if (x < w - 1) push(p + 1);
+    if (p >= w) push(p - w);
+    if (p < n - w) push(p + w);
+  }
+
+  let removed = 0;
+  for (let p = 0; p < n; p++) {
+    if (gone[p]) {
+      data[p * 4 + 3] = 0;
+      removed++;
+    }
+  }
+  if (removed === 0) return 0;
+
+  if (bg && thr > 0) {
+    for (let p = 0; p < n; p++) {
+      if (gone[p]) continue;
+      const x = p % w;
+      const touches =
+        (x > 0 && gone[p - 1]) || (x < w - 1 && gone[p + 1]) || (p >= w && gone[p - w]) || (p < n - w && gone[p + w]);
+      if (!touches) continue;
+      const d = Math.sqrt(dist2(p));
+      if (d < thr * 2) data[p * 4 + 3] = Math.round(data[p * 4 + 3] * ((d - thr) / thr));
+    }
+  }
+  return removed / n;
+}
+
+export async function applyCutout(source: ImageBitmap, tolerance: number): Promise<ImageBitmap> {
+  const canvas = document.createElement("canvas");
+  canvas.width = source.width;
+  canvas.height = source.height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) throw new Error("Browser tidak bisa membuat kanvas untuk menghapus latar.");
+  ctx.drawImage(source, 0, 0);
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const removed = cutoutPixels(img.data, canvas.width, canvas.height, tolerance);
+  if (removed === 0) throw new Error("Latar belakang tidak terdeteksi di tepi gambar. Coba naikkan toleransi.");
+  if (removed > 0.98) throw new Error("Hampir seluruh gambar terhapus. Turunkan toleransi.");
+  ctx.putImageData(img, 0, 0);
+  return createImageBitmap(canvas);
+}
+
+export async function withCutout(layer: AssetLayer, cutout: Cutout): Promise<AssetLayer> {
+  if (!cutout.on) return { ...layer, cutout, bitmap: layer.source };
+  return { ...layer, cutout, bitmap: await applyCutout(layer.source, cutout.tolerance) };
 }
 
 async function decodeSvg(file: File): Promise<{ bitmap: ImageBitmap; width: number; height: number }> {
@@ -87,5 +194,7 @@ export async function loadLayer(file: File, taken: string[]): Promise<AssetLayer
     width: decoded.width,
     height: decoded.height,
     bitmap: decoded.bitmap,
+    source: decoded.bitmap,
+    cutout: { on: false, tolerance: DEFAULT_TOLERANCE },
   };
 }

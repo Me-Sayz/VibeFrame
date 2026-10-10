@@ -2,14 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePersistentState } from "@/hooks/usePersistentState";
-import { IDEA_MAX, buildDirectPrompt, isIdeaValid } from "@/lib/prompt";
+import { IDEA_MAX, buildDirectPrompt, isIdeaValid, type PromptLayer } from "@/lib/prompt";
 import { RATIO_KEYS, type Ratio } from "@/types";
 import { btn, field, mono } from "./ui";
 
 interface Props {
   duration: number;
   ratio: Ratio;
-  onDuration: (value: number) => void;
+     onDuration: (value: number) => void;
+     layers?: PromptLayer[];
   onRatio: (value: Ratio) => void;
 }
 
@@ -17,7 +18,7 @@ type CopyState = "idle" | "copied" | "failed";
 
 const isString = (v: unknown) => typeof v === "string";
 
-export default function DirectPrompt({ duration, ratio, onDuration, onRatio }: Props) {
+export default function DirectPrompt({ duration, ratio, onDuration, onRatio, layers }: Props) {
   const [idea, setIdea] = usePersistentState("prompt:idea", "", isString);
   const [copyState, setCopyState] = useState<CopyState>("idle");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -28,8 +29,8 @@ export default function DirectPrompt({ duration, ratio, onDuration, onRatio }: P
 
   const valid = isIdeaValid(idea);
   const prompt = useMemo(
-    () => (valid ? buildDirectPrompt({ idea, duration, ratio }) : ""),
-    [valid, idea, duration, ratio]
+    () => (valid ? buildDirectPrompt({ idea, duration, ratio, layers }) : ""),
+    [valid, idea, duration, ratio, layers]
   );
 
   const copy = async () => {

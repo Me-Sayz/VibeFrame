@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { loadLayer, sanitizeName, uniqueName } from "@/lib/assets";
+import { loadLayer, sanitizeName, uniqueName, withCutout } from "@/lib/assets";
 import { renderCover } from "@/lib/cover";
 import { DEFAULT_PRESET, renderParams, type PresetId } from "@/lib/presets";
 import { isAbort, renderMp4 } from "@/lib/render";
 import { extractCode, validateCode } from "@/lib/validate";
 import type { LogEntry, LogLevel, MotionResult, Ratio } from "@/types";
-import type { AssetLayer } from "@/types/assets";
+import type { AssetLayer, Cutout } from "@/types/assets";
 
 const MAX_LOGS = 200;
 
@@ -41,6 +41,7 @@ export function useStudio() {
   const [layers, setLayers] = useState<AssetLayer[]>([]);
   const layersRef = useRef<AssetLayer[]>([]);
   const queueRef = useRef<Promise<void>>(Promise.resolve());
+  const cutoutToken = useRef(new Map<string, number>());
   const runCounter = useRef(0);
   const logCounter = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
@@ -121,6 +122,26 @@ export function useStudio() {
     [commitLayers]
   );
 
+  const setLayerCutout = useCallback(
+    async (id: string, cutout: Cutout) => {
+      const base = layersRef.current.find((l) => l.id === id);
+      if (!base) return;
+      const token = (cutoutToken.current.get(id) ?? 0) + 1;
+      cutoutToken.current.set(id, token);
+      const apply = (c: Cutout, bitmap: ImageBitmap) =>
+        commitLayers(layersRef.current.map((l) => (l.id === id ? { ...l, cutout: c, bitmap } : l)));
+      try {
+        const next = await withCutout(base, cutout);
+        if (cutoutToken.current.get(id) === token) apply(next.cutout, next.bitmap);
+      } catch (e) {
+        if (cutoutToken.current.get(id) !== token) return;
+        apply({ ...cutout, on: false }, base.source);
+        fail(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [commitLayers, fail]
+  );
+
   const toggleDark = useCallback(() => {
     const next = document.documentElement.dataset.theme !== "dark";
     document.documentElement.dataset.theme = next ? "dark" : "light";
@@ -132,7 +153,7 @@ export function useStudio() {
 
   const renderCode = useCallback(() => {
     const clean = extractCode(code);
-    const problem = validateCode(clean);
+    const problem = validateCode(clean, layers.map((l) => l.name));
     if (problem) {
       fail(problem);
       return;
@@ -220,7 +241,7 @@ export function useStudio() {
   return {
     ratio, setRatio, duration, setDuration, fps, setFps, preset, setPreset,
     code, setCode, result,
-    layers, addFiles, removeLayer, renameLayer, setLayerNote, moveLayer,
+    layers, addFiles, removeLayer, renameLayer, setLayerNote, moveLayer, setLayerCutout,
     error, dismissError, onPlayerError,
     logs, clearLogs,
     renderCode, pasteFromClipboard,

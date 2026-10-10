@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import CodeHub from "@/components/CodeHub";
 import ConfigTabs from "@/components/ConfigTabs";
 import FloatingPanel from "@/components/FloatingPanel";
@@ -16,6 +16,7 @@ export default function Home() {
   const player = usePlayer(studio.result, studio.onPlayerError);
   const [promptOpen, setPromptOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const layerNames = useMemo(() => studio.layers.map((l) => l.name), [studio.layers]);
 
   const view = studio.result ?? { ratio: studio.ratio, duration: studio.duration };
   const size = renderParams(view.ratio, studio.preset);
@@ -75,6 +76,13 @@ export default function Home() {
             coverBusy={studio.coverBusy}
             onCoverTime={studio.setCoverTime}
             onSaveCover={studio.saveCover}
+            layers={studio.layers}
+            onAddLayers={studio.addFiles}
+            onRemoveLayer={studio.removeLayer}
+            onRenameLayer={studio.renameLayer}
+            onLayerNote={studio.setLayerNote}
+            onMoveLayer={studio.moveLayer}
+            onLayerCutout={studio.setLayerCutout}
           />
         </div>
 
@@ -130,6 +138,7 @@ export default function Home() {
             onRender={studio.renderCode}
             onPaste={studio.pasteFromClipboard}
             disabled={studio.rendering}
+            layerNames={layerNames}
           />
         </FloatingPanel>
       )}
@@ -140,6 +149,7 @@ export default function Home() {
           ratio={studio.ratio}
           onDuration={studio.setDuration}
           onRatio={studio.setRatio}
+          layers={studio.layers}
           onClose={() => setPromptOpen(false)}
         />
       )}

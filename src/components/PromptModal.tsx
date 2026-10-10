@@ -2,6 +2,7 @@
 
 import { useId, type KeyboardEvent } from "react";
 import { usePersistentState } from "@/hooks/usePersistentState";
+import type { PromptLayer } from "@/lib/prompt";
 import type { Ratio } from "@/types";
 import DirectPrompt from "./DirectPrompt";
 import Modal from "./Modal";
@@ -20,10 +21,11 @@ interface Props {
   ratio: Ratio;
   onDuration: (value: number) => void;
   onRatio: (value: Ratio) => void;
+  layers?: PromptLayer[];
   onClose: () => void;
 }
 
-export default function PromptModal({ duration, ratio, onDuration, onRatio, onClose }: Props) {
+export default function PromptModal({ duration, ratio, onDuration, onRatio, layers = [], onClose }: Props) {
   const base = useId();
   const [tab, setTab] = usePersistentState<TabId>("prompt:tab", "template", isTab);
   const active = TABS.find((t) => t.id === tab) ?? TABS[0];
@@ -62,12 +64,17 @@ export default function PromptModal({ duration, ratio, onDuration, onRatio, onCl
         ))}
       </div>
       <p className="mb-4 text-xs opacity-70">{active.hint}</p>
+      {layers.length > 0 && (
+        <p className="mb-4 rounded-lg border-[3px] border-ink bg-lime p-2 text-xs font-bold text-black">
+          {layers.length} layer gambar ikut masuk ke prompt.
+        </p>
+      )}
 
       <div role="tabpanel" id={`${base}-panel`} aria-labelledby={`${base}-${active.id}`}>
         {active.id === "template" ? (
-          <PromptBuilder duration={duration} ratio={ratio} onDuration={onDuration} onRatio={onRatio} />
+          <PromptBuilder duration={duration} ratio={ratio} onDuration={onDuration} onRatio={onRatio} layers={layers} />
         ) : (
-          <DirectPrompt duration={duration} ratio={ratio} onDuration={onDuration} onRatio={onRatio} />
+          <DirectPrompt duration={duration} ratio={ratio} onDuration={onDuration} onRatio={onRatio} layers={layers} />
         )}
       </div>
     </Modal>

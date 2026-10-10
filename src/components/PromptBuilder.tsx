@@ -3,14 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { THEME_CATEGORIES, searchThemes } from "@/data/themes";
 import { usePersistentState } from "@/hooks/usePersistentState";
-import { THEME_MAX, buildPrompt, isThemeValid } from "@/lib/prompt";
+import { THEME_MAX, buildPrompt, isThemeValid, type PromptLayer } from "@/lib/prompt";
 import { CONCEPTS, RATIO_KEYS, SCENE_OPTIONS, STYLES, type Concept, type Ratio, type Style } from "@/types";
 import { btn, field, mono } from "./ui";
 
 interface Props {
   duration: number;
   ratio: Ratio;
-  onDuration: (value: number) => void;
+     onDuration: (value: number) => void;
+     layers?: PromptLayer[];
   onRatio: (value: Ratio) => void;
 }
 
@@ -20,7 +21,7 @@ const isString = (v: unknown) => typeof v === "string";
 const oneOf = (list: readonly unknown[]) => (v: unknown) => list.includes(v);
 const CATEGORY_IDS = THEME_CATEGORIES.map((c) => c.id);
 
-export default function PromptBuilder({ duration, ratio, onDuration, onRatio }: Props) {
+export default function PromptBuilder({ duration, ratio, onDuration, onRatio, layers }: Props) {
   const [theme, setTheme] = usePersistentState("prompt:theme", "", isString);
   const [categoryId, setCategoryId] = usePersistentState("prompt:category", CATEGORY_IDS[0], oneOf(CATEGORY_IDS));
   const [scenes, setScenes] = usePersistentState<number>("prompt:scenes", 1, oneOf(SCENE_OPTIONS));
@@ -39,8 +40,8 @@ export default function PromptBuilder({ duration, ratio, onDuration, onRatio }: 
   const valid = isThemeValid(theme);
 
   const prompt = useMemo(
-    () => (valid ? buildPrompt({ theme, scenes, style, concept, duration, ratio }) : ""),
-    [valid, theme, scenes, style, concept, duration, ratio]
+    () => (valid ? buildPrompt({ theme, scenes, style, concept, duration, ratio, layers }) : ""),
+    [valid, theme, scenes, style, concept, duration, ratio, layers]
   );
 
   const copy = async () => {

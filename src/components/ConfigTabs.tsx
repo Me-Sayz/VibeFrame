@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { BIG_FILE_MB, PRESETS, estimateMB, renderParams, type PresetId } from "@/lib/presets";
 import { RATIO_KEYS, type LogEntry, type Ratio } from "@/types";
+import type { AssetLayer, Cutout } from "@/types/assets";
+import AssetsPanel from "./AssetsPanel";
 import CoverPanel from "./CoverPanel";
 import { btn, card, field } from "./ui";
 
@@ -36,22 +38,17 @@ interface Props {
   coverBusy: boolean;
   onCoverTime: (value: number) => void;
   onSaveCover: () => void;
+  layers: AssetLayer[];
+  onAddLayers: (files: File[]) => void;
+  onRemoveLayer: (id: string) => void;
+  onRenameLayer: (id: string, raw: string) => void;
+  onLayerNote: (id: string, note: string) => void;
+  onMoveLayer: (id: string, dir: -1 | 1) => void;
+  onLayerCutout: (id: string, cutout: Cutout) => void;
 }
 
 const stamp = (t: number) => new Date(t).toTimeString().slice(0, 8);
 const logLine = (l: LogEntry) => `[${stamp(l.time)}] [${l.level.toUpperCase()}] ${l.text}`;
-
-function Soon({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="space-y-2 rounded-lg border-[3px] border-dashed border-ink bg-paper p-4 text-sm">
-      <p className="font-bold">{title}</p>
-      <p className="text-xs opacity-80">{children}</p>
-      <span className="inline-block rounded border-2 border-ink bg-sun px-2 py-0.5 text-[10px] font-bold uppercase text-black">
-        Segera hadir
-      </span>
-    </div>
-  );
-}
 
 export default function ConfigTabs(p: Props) {
   const base = useId();
@@ -206,10 +203,15 @@ export default function ConfigTabs(p: Props) {
         )}
 
         {tab === "assets" && (
-          <Soon title="Aset library multi-layer">
-            Unggah gambar lokal (PNG, JPG, SVG, WebP) untuk dijadikan layer visual terpisah, diproses offline di browser tanpa
-            diunggah ke server.
-          </Soon>
+          <AssetsPanel
+            layers={p.layers}
+            onAdd={p.onAddLayers}
+            onRemove={p.onRemoveLayer}
+            onRename={p.onRenameLayer}
+            onNote={p.onLayerNote}
+            onMove={p.onMoveLayer}
+            onCutout={p.onLayerCutout}
+          />
         )}
 
         {tab === "cover" && (

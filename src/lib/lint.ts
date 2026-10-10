@@ -5,11 +5,11 @@ export interface LintResult {
   message: string;
 }
 
-export function lintCode(raw: string): LintResult {
+export function lintCode(raw: string, layerNames?: string[]): LintResult {
   const code = extractCode(raw);
   if (!code) return { level: "empty", message: "Belum ada kode." };
 
-  const problem = validateCode(code);
+  const problem = validateCode(code, layerNames);
   if (problem) return { level: "error", message: problem };
 
   try {

@@ -10,6 +10,7 @@ interface Props {
   onRender: () => void;
   onPaste: () => void;
   disabled?: boolean;
+  layerNames?: string[];
 }
 
 const BADGE = {
@@ -18,8 +19,8 @@ const BADGE = {
   error: { style: "bg-pink text-black", label: "Error" },
 } as const;
 
-export default function CodeHub({ code, onChange, onRender, onPaste, disabled }: Props) {
-  const lint = useMemo(() => lintCode(code), [code]);
+export default function CodeHub({ code, onChange, onRender, onPaste, disabled, layerNames }: Props) {
+  const lint = useMemo(() => lintCode(code, layerNames), [code, layerNames]);
   const badge = BADGE[lint.level];
   const canRender = lint.level === "clean" && !disabled;
 
