@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { HistoryEntry } from "@/hooks/useHistory";
 import { HISTORY_MAX } from "@/hooks/useHistory";
 import Modal from "./Modal";
@@ -41,7 +41,79 @@ function NameField({ entry, onRename }: { entry: HistoryEntry; onRename: (id: st
   );
 }
 
+interface Group {
+  root: HistoryEntry;
+  fixes: HistoryEntry[];
+  latest: number;
+}
+
+export function groupHistory(items: HistoryEntry[]): Group[] {
+  const ids = new Set(items.map((e) => e.id));
+  const fixesOf = new Map<string, HistoryEntry[]>();
+  const roots: HistoryEntry[] = [];
+  for (const e of items) {
+    if (e.parentId && ids.has(e.parentId)) fixesOf.set(e.parentId, [...(fixesOf.get(e.parentId) ?? []), e]);
+    else roots.push(e);
+  }
+  return roots
+    .map((root) => {
+      const fixes = (fixesOf.get(root.id) ?? []).sort((a, b) => (a.rev ?? 0) - (b.rev ?? 0));
+      return { root, fixes, latest: Math.max(root.at, ...fixes.map((f) => f.at)) };
+    })
+    .sort((a, b) => b.latest - a.latest);
+}
+
+function Row({
+  entry,
+  disabled,
+  onOpen,
+  onRename,
+  onRemove,
+  fix,
+}: {
+  entry: HistoryEntry;
+  disabled: boolean;
+  onOpen: (entry: HistoryEntry) => void;
+  onRename: (id: string, raw: string) => void;
+  onRemove: (id: string) => void;
+  fix?: boolean;
+}) {
+  return (
+    <li className={`space-y-2 rounded-lg border-[3px] border-ink bg-paper p-2 ${fix ? "ml-5" : ""}`}>
+      <div className="flex items-center gap-2">
+        {fix && (
+          <span className="shrink-0 rounded border-2 border-ink bg-sun px-1.5 text-[10px] font-bold text-black">
+            🛠 {entry.rev ?? 1}
+          </span>
+        )}
+        <div className="min-w-0 flex-1">
+          <NameField entry={entry} onRename={onRename} />
+        </div>
+        <button onClick={() => onOpen(entry)} disabled={disabled} className={`${btn.smallSun} shrink-0`}>
+          Buka
+        </button>
+        <button
+          onClick={() => onRemove(entry.id)}
+          aria-label={`Hapus ${entry.name}`}
+          className={`${btn.small} shrink-0 !px-2 hover:!bg-pink`}
+        >
+          ✕
+        </button>
+      </div>
+      <p className="font-mono text-[10px] opacity-70">
+        {entry.ratio} · {entry.duration} detik · {entry.code.split("\n").length} baris
+      </p>
+      {entry.layers.length > 0 && (
+        <p className="text-[10px] font-bold">
+          ⚠️ Butuh layer: {entry.layers.map((n) => `assets.${n}`).join(", ")}. Unggah ulang gambarnya dengan nama yang sama.
+        </p>
+      )}
+    </li>
+  );
+}
+
 export default function HistoryModal({ items, disabled, onOpen, onRename, onRemove, onClear, onClose }: Props) {
+  const groups = useMemo(() => groupHistory(items), [items]);
   const handleClear = () => {
     if (window.confirm(`Hapus semua ${items.length} riwayat?`)) onClear();
   };
@@ -58,36 +130,14 @@ export default function HistoryModal({ items, disabled, onOpen, onRename, onRemo
             Tersimpan di browser ini, maksimal {HISTORY_MAX} item terbaru. Layer gambar tidak ikut tersimpan.
           </p>
           <ul className="space-y-2" aria-label="Daftar riwayat">
-            {items.map((e) => (
-              <li key={e.id} className="space-y-2 rounded-lg border-[3px] border-ink bg-paper p-2">
-                <div className="flex items-center gap-2">
-                  <div className="min-w-0 flex-1">
-                    <NameField entry={e} onRename={onRename} />
-                  </div>
-                  <button
-                    onClick={() => onOpen(e)}
-                    disabled={disabled}
-                    className={`${btn.smallSun} shrink-0`}
-                  >
-                    Buka
-                  </button>
-                  <button
-                    onClick={() => onRemove(e.id)}
-                    aria-label={`Hapus ${e.name}`}
-                    className={`${btn.small} shrink-0 !px-2 hover:!bg-pink`}
-                  >
-                    ✕
-                  </button>
-                </div>
-                <p className="font-mono text-[10px] opacity-70">
-                  {e.ratio} · {e.duration} detik · {e.code.split("\n").length} baris
-                </p>
-                {e.layers.length > 0 && (
-                  <p className="text-[10px] font-bold">
-                    ⚠️ Butuh layer: {e.layers.map((n) => `assets.${n}`).join(", ")}. Unggah ulang gambarnya dengan nama yang
-                    sama.
-                  </p>
-                )}
+            {groups.map(({ root, fixes }) => (
+              <li key={root.id} className="list-none space-y-2">
+                <ul className="space-y-2">
+                  <Row entry={root} disabled={disabled} onOpen={onOpen} onRename={onRename} onRemove={onRemove} />
+                  {fixes.map((f) => (
+                    <Row key={f.id} entry={f} fix disabled={disabled} onOpen={onOpen} onRename={onRename} onRemove={onRemove} />
+                  ))}
+                </ul>
               </li>
             ))}
           </ul>

@@ -26,6 +26,21 @@ export default function Home() {
   const [licenseNotice, setLicenseNotice] = useState<string | null>(null);
   const layerNames = useMemo(() => studio.layers.map((l) => l.name), [studio.layers]);
 
+  const fixWithAi = async (instruction: string): Promise<boolean> => {
+    if (!license.active) {
+      setLicenseNotice("Perbaiki dengan AI butuh lisensi. Masukkan kode lisensi di bawah.");
+      setLicenseOpen(true);
+      return false;
+    }
+    const outcome = await studio.fix(instruction, license.code);
+    if (outcome.status === "license") {
+      license.refresh();
+      setLicenseNotice(outcome.message ?? "Lisensi tidak valid.");
+      setLicenseOpen(true);
+    }
+    return outcome.status === "ok";
+  };
+
   const view = studio.result ?? { ratio: studio.ratio, duration: studio.duration };
   const size = renderParams(view.ratio, studio.preset);
   const percent = studio.progress ? Math.round((studio.progress.done / studio.progress.total) * 100) : 0;
@@ -112,6 +127,15 @@ export default function Home() {
               setPromptWithLayers(true);
               setPromptOpen(true);
             }}
+            hasCode={studio.code.trim() !== ""}
+            canRender={studio.canRender}
+            onRender={studio.renderCode}
+            aiBusy={studio.aiBusy}
+            aiLocked={!license.active}
+            codeProblem={studio.codeProblem}
+            canUndoFix={studio.canUndoFix}
+            onFix={fixWithAi}
+            onUndoFix={studio.undoFix}
           />
         </div>
 
@@ -168,6 +192,10 @@ export default function Home() {
             onPaste={studio.pasteFromClipboard}
             disabled={studio.rendering}
             layerNames={layerNames}
+            onFix={() => void fixWithAi("")}
+            fixAvailable={studio.codeProblem !== ""}
+            fixBusy={studio.aiBusy}
+            fixLocked={!license.active}
           />
         </FloatingPanel>
       )}
@@ -180,7 +208,7 @@ export default function Home() {
           onRatio={studio.setRatio}
           layers={promptWithLayers ? studio.layers : []}
           onDropLayers={() => setPromptWithLayers(false)}
-          generating={studio.generating}
+          generating={studio.aiBusy}
           locked={!license.active}
           licenseCode={license.active ? license.code : ""}
           onGenerate={async (prompt) => {
@@ -228,12 +256,12 @@ export default function Home() {
         />
       )}
 
-      {studio.generating && (
+      {studio.aiBusy && (
         <div
           role="status"
           className="fixed bottom-4 left-4 z-40 flex items-center gap-3 rounded-xl border-[3px] border-ink bg-sun p-3 text-sm font-bold text-black shadow-brut"
         >
-          <span>✨ AI sedang membuat animasi…</span>
+          <span>{studio.fixing ? "✨ AI sedang memperbaiki kode…" : "✨ AI sedang membuat animasi…"}</span>
           <button onClick={studio.cancelGenerate} className={btn.small}>
             ✕ Batal
           </button>

@@ -11,6 +11,10 @@ interface Props {
   onPaste: () => void;
   disabled?: boolean;
   layerNames?: string[];
+  onFix?: () => void;
+  fixAvailable?: boolean;
+  fixBusy?: boolean;
+  fixLocked?: boolean;
 }
 
 const BADGE = {
@@ -19,7 +23,7 @@ const BADGE = {
   error: { style: "bg-pink text-black", label: "Error" },
 } as const;
 
-export default function CodeHub({ code, onChange, onRender, onPaste, disabled, layerNames }: Props) {
+export default function CodeHub({ code, onChange, onRender, onPaste, disabled, layerNames, onFix, fixAvailable, fixBusy, fixLocked }: Props) {
   const lint = useMemo(() => lintCode(code, layerNames), [code, layerNames]);
   const badge = BADGE[lint.level];
   const canRender = lint.level === "clean" && !disabled;
@@ -48,6 +52,12 @@ export default function CodeHub({ code, onChange, onRender, onPaste, disabled, l
         <span className="shrink-0 rounded border-2 border-current px-1.5 uppercase">{badge.label}</span>
         <span className="min-w-0 break-words font-mono font-normal">{lint.message}</span>
       </div>
+
+      {onFix && (fixAvailable || lint.level === "error") && (
+        <button onClick={onFix} disabled={fixBusy} className={btn.small}>
+          {fixBusy ? "⏳ AI sedang bekerja…" : fixLocked ? "🔒 Perbaiki error (butuh lisensi)" : "✨ Perbaiki error dengan AI"}
+        </button>
+      )}
 
       <div className="grid grid-cols-3 gap-2">
         <button onClick={() => onChange("")} disabled={!code} className={btn.small}>

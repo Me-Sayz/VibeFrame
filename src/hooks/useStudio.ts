@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { loadLayer, sanitizeName, uniqueName, withCutout } from "@/lib/assets";
-import { LicenseError, requestAnimation } from "@/lib/ai";
+import { LicenseError, requestAnimation, requestFix } from "@/lib/ai";
 import { renderCover } from "@/lib/cover";
+import { lintCode } from "@/lib/lint";
 import { DEFAULT_PRESET, renderParams, type PresetId } from "@/lib/presets";
 import { isAbort, renderMp4 } from "@/lib/render";
 import { extractCode, usedLayers, validateCode } from "@/lib/validate";
@@ -26,6 +27,8 @@ export interface GenerateOutcome {
   status: "ok" | "rejected" | "failed" | "license";
   message?: string;
 }
+
+export type AiTask = "generate" | "fix";
 
 export interface RenderProgress {
   done: number;
@@ -55,7 +58,9 @@ export function useStudio() {
   const logCounter = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const aiAbortRef = useRef<AbortController | null>(null);
-  const [generating, setGenerating] = useState(false);
+  const [aiTask, setAiTask] = useState<AiTask | null>(null);
+  const [runtimeError, setRuntimeError] = useState<string | null>(null);
+  const [fixUndo, setFixUndo] = useState<{ before: string; after: string } | null>(null);
 
   useEffect(() => {
     setDark(document.documentElement.dataset.theme === "dark");
@@ -164,12 +169,17 @@ export function useStudio() {
   }, []);
 
   const commitRender = useCallback(
-    (clean: string, r: Ratio, d: number) => {
+    (clean: string, r: Ratio, d: number, parentCode?: string) => {
       setError(null);
+      setRuntimeError(null);
       setCode(clean);
       runCounter.current += 1;
       setResult({ code: clean, ratio: r, duration: d, runId: runCounter.current, assets: layers });
-      addHistory({ code: clean, ratio: r, duration: d, layers: usedLayers(clean) });
+      const parent =
+        parentCode && parentCode !== clean && lintCode(parentCode, layers.map((l) => l.name)).level === "clean"
+          ? { code: parentCode, ratio: r, duration: d, layers: usedLayers(parentCode) }
+          : undefined;
+      addHistory({ code: clean, ratio: r, duration: d, layers: usedLayers(clean) }, parent);
       log("info", `Render kode: ${r}, ${d} detik, ${layers.length} layer`);
     },
     [layers, addHistory, log]
@@ -260,7 +270,7 @@ export function useStudio() {
       if (aiAbortRef.current) return { status: "failed" };
       const controller = new AbortController();
       aiAbortRef.current = controller;
-      setGenerating(true);
+      setAiTask("generate");
       setError(null);
       log("info", `Buat Animasi (AI): ${ratio}, ${duration} detik`);
       try {
@@ -285,7 +295,7 @@ export function useStudio() {
         return { status: "failed" };
       } finally {
         aiAbortRef.current = null;
-        setGenerating(false);
+        setAiTask(null);
       }
     },
     [ratio, duration, layers, fail, log, commitRender]
@@ -293,16 +303,93 @@ export function useStudio() {
 
   const cancelGenerate = useCallback(() => aiAbortRef.current?.abort(), []);
 
+  const layerNames = useMemo(() => layers.map((l) => l.name), [layers]);
+  const lint = useMemo(() => lintCode(code, layerNames), [code, layerNames]);
+  const codeProblem = lint.level === "error" ? lint.message : (runtimeError ?? "");
+  const canRender = lint.level === "clean" && progress === null;
+  const canUndoFix = fixUndo !== null && extractCode(code) === fixUndo.after;
+
+  const editCode = useCallback((value: string) => {
+    setCode(value);
+    setRuntimeError(null);
+  }, []);
+
+  const fix = useCallback(
+    async (instruction: string, license: string): Promise<GenerateOutcome> => {
+      if (aiAbortRef.current) return { status: "failed" };
+      const before = extractCode(code);
+      if (!before) {
+        fail("Belum ada kode untuk diperbaiki. Isi dulu di Terminal atau buat dengan AI.");
+        return { status: "failed" };
+      }
+      const controller = new AbortController();
+      aiAbortRef.current = controller;
+      setAiTask("fix");
+      setError(null);
+      log("info", `Perbaiki dengan AI: ${instruction.trim() ? "ubah sesuai permintaan" : "perbaiki error"}`);
+      try {
+        const { text, model } = await requestFix(
+          {
+            code: before,
+            instruction: instruction.trim(),
+            error: codeProblem,
+            duration,
+            ratio,
+            layers: layers.map((l) => ({ name: l.name, width: l.width, height: l.height })),
+          },
+          controller.signal,
+          license
+        );
+        if (model) log("info", `Model AI: ${model}`);
+        const clean = extractCode(text);
+        const problem = validateCode(clean, layerNames);
+        if (problem) {
+          fail(`Hasil perbaikan AI ditolak: ${problem} Kode lama tidak diubah.`);
+          return { status: "rejected" };
+        }
+        if (clean === before) {
+          fail("AI tidak mengubah apa pun. Coba tulis permintaan yang lebih jelas.");
+          return { status: "failed" };
+        }
+        setFixUndo({ before, after: clean });
+        commitRender(clean, ratio, duration, before);
+        return { status: "ok" };
+      } catch (e) {
+        if (e instanceof LicenseError) {
+          log("error", e.message);
+          return { status: "license", message: e.message };
+        }
+        if (isAbort(e)) log("info", "Perbaiki dengan AI dibatalkan");
+        else fail(e instanceof Error ? e.message : String(e));
+        return { status: "failed" };
+      } finally {
+        aiAbortRef.current = null;
+        setAiTask(null);
+      }
+    },
+    [code, codeProblem, duration, ratio, layers, layerNames, fail, log, commitRender]
+  );
+
+  const undoFix = useCallback(() => {
+    if (!fixUndo || extractCode(code) !== fixUndo.after) return;
+    const { before } = fixUndo;
+    setFixUndo(null);
+    log("info", "Perbaikan AI diurungkan");
+    if (lintCode(before, layerNames).level === "clean") commitRender(before, ratio, duration);
+    else editCode(before);
+  }, [fixUndo, code, layerNames, ratio, duration, commitRender, editCode, log]);
+
   const pasteFromClipboard = useCallback(async () => {
     try {
-      setCode(await navigator.clipboard.readText());
+      editCode(await navigator.clipboard.readText());
     } catch {
       fail("Browser menolak akses clipboard. Tempel manual dengan Ctrl+V.");
     }
-  }, [fail]);
+  }, [fail, editCode]);
 
   const onPlayerError = useCallback(
     (message: string) => {
+      setRuntimeError(`Kode gagal dijalankan: ${message.slice(0, 300)}`);
       setError(`Kode gagal dijalankan: ${message.slice(0, 120)}`);
       log("error", `Kode gagal dijalankan: ${message.slice(0, 300)}`);
     },
@@ -313,12 +400,13 @@ export function useStudio() {
 
   return {
     ratio, setRatio, duration, setDuration, fps, setFps, preset, setPreset,
-    code, setCode, result,
+    code, setCode: editCode, result,
     layers, addFiles, removeLayer, renameLayer, setLayerNote, moveLayer, setLayerCutout,
     error, dismissError, onPlayerError,
     logs, clearLogs,
     renderCode, pasteFromClipboard, history, openHistory,
-    generating, generate, cancelGenerate,
+    generating: aiTask === "generate", fixing: aiTask === "fix", aiBusy: aiTask !== null,
+    generate, cancelGenerate, fix, undoFix, canUndoFix, codeProblem, canRender,
     progress, rendering: progress !== null, exportMp4, cancelRender,
     coverAt, coverMax, setCoverTime, coverBusy, saveCover,
     dark, toggleDark,

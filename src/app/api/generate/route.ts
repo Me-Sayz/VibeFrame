@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { acquire, release } from "@/lib/aiLock";
 import { generateText, geminiModels } from "@/lib/gemini";
 import { reply, sameOrigin } from "@/lib/http";
 import { licenseMessage, verifyLicense } from "@/lib/license";
@@ -9,7 +10,6 @@ export const dynamic = "force-dynamic";
 
 const MAX_PROMPT = 30_000;
 const PER_MINUTE = 3;
-const inflight = new Set<string>();
 
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return reply("Permintaan ditolak.", 403);
@@ -39,15 +39,13 @@ export async function POST(req: Request) {
   if (prompt.length > MAX_PROMPT) return reply(`Prompt terlalu panjang (maksimal ${MAX_PROMPT} karakter).`, 400);
 
   const owner = auth.code;
-  if (inflight.has(owner)) {
-    return reply("Lisensi ini sedang dipakai membuat animasi lain. Tunggu sampai selesai, lalu coba lagi.", 429);
+  if (!acquire(owner)) {
+    return reply("Lisensi ini sedang dipakai proses AI lain. Tunggu sampai selesai, lalu coba lagi.", 429);
   }
-  if (isLimited(`generate:${owner}`, PER_MINUTE, 60_000)) {
-    return reply(`Terlalu cepat: maksimal ${PER_MINUTE} animasi per menit untuk satu lisensi. Coba lagi sebentar lagi.`, 429);
-  }
-
-  inflight.add(owner);
   try {
+    if (isLimited(`generate:${owner}`, PER_MINUTE, 60_000)) {
+      return reply(`Terlalu cepat: maksimal ${PER_MINUTE} animasi per menit untuk satu lisensi. Coba lagi sebentar lagi.`, 429);
+    }
     const result = await generateText(models, key, prompt, {
       maxOutputTokens: 32000,
       temperature: 0.7,
@@ -57,6 +55,6 @@ export async function POST(req: Request) {
     if (!result.ok) return reply(result.error, result.status);
     return NextResponse.json({ text: result.text, model: result.model });
   } finally {
-    inflight.delete(owner);
+    release(owner);
   }
 }

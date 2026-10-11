@@ -6,15 +6,17 @@ import { RATIO_KEYS, type LogEntry, type Ratio } from "@/types";
 import type { AssetLayer, Cutout } from "@/types/assets";
 import AssetsPanel from "./AssetsPanel";
 import CoverPanel from "./CoverPanel";
+import FixPanel from "./FixPanel";
 import { btn, card, field } from "./ui";
 
 const FPS_OPTIONS = [24, 30, 60];
 
 const TABS = [
-  { id: "config", label: "⚙️ Config" },
-  { id: "assets", label: "🖼️ Assets" },
-  { id: "cover", label: "🎞️ Cover" },
-  { id: "logs", label: "📜 Logs" },
+  { id: "config", icon: "⚙️", label: "Config" },
+  { id: "assets", icon: "🖼️", label: "Assets" },
+  { id: "cover", icon: "🎞️", label: "Cover" },
+  { id: "ai", icon: "✨", label: "AI" },
+  { id: "logs", icon: "📜", label: "Logs" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -46,6 +48,15 @@ interface Props {
   onMoveLayer: (id: string, dir: -1 | 1) => void;
   onLayerCutout: (id: string, cutout: Cutout) => void;
   onUseAi: () => void;
+  hasCode: boolean;
+  canRender: boolean;
+  onRender: () => void;
+  aiBusy: boolean;
+  aiLocked: boolean;
+  codeProblem: string;
+  canUndoFix: boolean;
+  onFix: (instruction: string) => Promise<boolean>;
+  onUndoFix: () => void;
 }
 
 const stamp = (t: number) => new Date(t).toTimeString().slice(0, 8);
@@ -91,7 +102,7 @@ export default function ConfigTabs(p: Props) {
 
   return (
     <div className={`${card} p-3`}>
-      <div role="tablist" aria-label="Panel pengaturan" className="mb-3 grid grid-cols-4 gap-1.5">
+      <div role="tablist" aria-label="Panel pengaturan" className="mb-3 grid grid-cols-5 gap-1">
         {TABS.map((t, i) => (
           <button
             key={t.id}
@@ -102,14 +113,25 @@ export default function ConfigTabs(p: Props) {
             tabIndex={tab === t.id ? 0 : -1}
             onClick={() => setTab(t.id)}
             onKeyDown={(e) => onKeyDown(e, i)}
-            className={`rounded-lg border-[3px] border-ink px-1 py-1.5 text-[11px] font-bold transition ${
+            className={`relative rounded-lg border-[3px] border-ink px-0.5 py-1.5 text-[10px] font-bold leading-tight transition ${
               tab === t.id ? "bg-sun text-black shadow-brut-sm" : "bg-card text-ink hover:bg-lime hover:text-black"
             }`}
           >
-            {t.label}
+            <span className="block text-sm leading-none">{t.icon}</span> <span className="block">{t.label}</span>
             {t.id === "logs" && p.logs.length > 0 && (
-              <span className={`ml-1 rounded px-1 text-[10px] ${errors ? "bg-pink text-black" : "bg-ink text-card"}`}>
+              <span
+                className={`absolute -right-1 -top-2 rounded px-1 text-[9px] leading-tight ${errors ? "bg-pink text-black" : "bg-ink text-card"}`}
+              >
                 {p.logs.length}
+              </span>
+            )}
+            {t.id === "ai" && p.codeProblem !== "" && (
+              <span
+                role="img"
+                aria-label="Kode bermasalah"
+                className="absolute -right-1 -top-2 rounded bg-pink px-1 text-[9px] leading-tight text-black"
+              >
+                !
               </span>
             )}
           </button>
@@ -119,6 +141,16 @@ export default function ConfigTabs(p: Props) {
       <div role="tabpanel" id={`${base}-panel`} aria-labelledby={`${base}-${tab}`} className="space-y-4">
         {tab === "config" && (
           <>
+            <div className="space-y-1">
+              <button onClick={p.onRender} disabled={!p.canRender} className={btn.primary}>
+                ▶ Render kode
+              </button>
+              <p className="text-xs opacity-70">
+                {p.hasCode
+                  ? "Memutar kode di Terminal dengan durasi dan rasio di bawah."
+                  : "Belum ada kode. Isi di Terminal atau buat lewat Prompt AI."}
+              </p>
+            </div>
             <div>
               <div className="mb-1 flex justify-between text-xs font-bold uppercase">
                 <span>Durasi</span>
@@ -213,6 +245,18 @@ export default function ConfigTabs(p: Props) {
             onMove={p.onMoveLayer}
             onCutout={p.onLayerCutout}
             onUseAi={p.onUseAi}
+          />
+        )}
+
+        {tab === "ai" && (
+          <FixPanel
+            locked={p.aiLocked}
+            busy={p.aiBusy}
+            hasCode={p.hasCode}
+            problem={p.codeProblem}
+            canUndo={p.canUndoFix}
+            onFix={p.onFix}
+            onUndo={p.onUndoFix}
           />
         )}
 
