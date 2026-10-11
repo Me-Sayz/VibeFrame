@@ -15,6 +15,7 @@ interface Props {
   onRatio: (value: Ratio) => void;
   onGenerate?: (prompt: string) => void;
   busy?: boolean;
+  locked?: boolean;
 }
 
 type CopyState = "idle" | "copied" | "failed";
@@ -23,7 +24,7 @@ const isString = (v: unknown) => typeof v === "string";
 const oneOf = (list: readonly unknown[]) => (v: unknown) => list.includes(v);
 const CATEGORY_IDS = THEME_CATEGORIES.map((c) => c.id);
 
-export default function PromptBuilder({ duration, ratio, onDuration, onRatio, layers, onGenerate, busy }: Props) {
+export default function PromptBuilder({ duration, ratio, onDuration, onRatio, layers, onGenerate, busy, locked }: Props) {
   const [theme, setTheme] = usePersistentState("prompt:theme", "", isString);
   const [categoryId, setCategoryId] = usePersistentState("prompt:category", CATEGORY_IDS[0], oneOf(CATEGORY_IDS));
   const [scenes, setScenes] = usePersistentState<number>("prompt:scenes", 1, oneOf(SCENE_OPTIONS));
@@ -218,7 +219,7 @@ export default function PromptBuilder({ duration, ratio, onDuration, onRatio, la
 
       {onGenerate && (
         <button onClick={() => onGenerate(prompt)} disabled={!valid || busy} className={btn.secondary}>
-          {busy ? "⏳ AI sedang membuat…" : "✨ Buat Animasi (AI)"}
+          {busy ? "⏳ AI sedang membuat…" : locked ? "🔒 Buat Animasi (butuh lisensi)" : "✨ Buat Animasi (AI)"}
         </button>
       )}
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { loadLayer, sanitizeName, uniqueName, withCutout } from "@/lib/assets";
-import { requestAnimation } from "@/lib/ai";
+import { LicenseError, requestAnimation } from "@/lib/ai";
 import { renderCover } from "@/lib/cover";
 import { DEFAULT_PRESET, renderParams, type PresetId } from "@/lib/presets";
 import { isAbort, renderMp4 } from "@/lib/render";
@@ -20,6 +20,11 @@ function saveBlob(blob: Blob, name: string) {
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+export interface GenerateOutcome {
+  status: "ok" | "rejected" | "failed" | "license";
+  message?: string;
 }
 
 export interface RenderProgress {
@@ -251,29 +256,33 @@ export function useStudio() {
   const cancelRender = useCallback(() => abortRef.current?.abort(), []);
 
   const generate = useCallback(
-    async (prompt: string): Promise<"ok" | "rejected" | "failed"> => {
-      if (aiAbortRef.current) return "failed";
+    async (prompt: string, license: string): Promise<GenerateOutcome> => {
+      if (aiAbortRef.current) return { status: "failed" };
       const controller = new AbortController();
       aiAbortRef.current = controller;
       setGenerating(true);
       setError(null);
       log("info", `Buat Animasi (AI): ${ratio}, ${duration} detik`);
       try {
-        const { text, model } = await requestAnimation(prompt, controller.signal);
+        const { text, model } = await requestAnimation(prompt, controller.signal, license);
         if (model) log("info", `Model AI: ${model}`);
         const clean = extractCode(text);
         setCode(clean);
         const problem = validateCode(clean, layers.map((l) => l.name));
         if (problem) {
           fail(`Kode dari AI ditolak: ${problem} Kodenya sudah dimasukkan ke Terminal untuk dicek.`);
-          return "rejected";
+          return { status: "rejected" };
         }
         commitRender(clean, ratio, duration);
-        return "ok";
+        return { status: "ok" };
       } catch (e) {
+        if (e instanceof LicenseError) {
+          log("error", e.message);
+          return { status: "license", message: e.message };
+        }
         if (isAbort(e)) log("info", "Buat Animasi dibatalkan");
         else fail(e instanceof Error ? e.message : String(e));
-        return "failed";
+        return { status: "failed" };
       } finally {
         aiAbortRef.current = null;
         setGenerating(false);

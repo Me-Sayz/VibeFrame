@@ -25,10 +25,12 @@ interface Props {
   onDropLayers?: () => void;
   onGenerate?: (prompt: string) => void;
   generating?: boolean;
+  locked?: boolean;
+  licenseCode?: string;
   onClose: () => void;
 }
 
-export default function PromptModal({ duration, ratio, onDuration, onRatio, layers = [], onDropLayers, onGenerate, generating = false, onClose }: Props) {
+export default function PromptModal({ duration, ratio, onDuration, onRatio, layers = [], onDropLayers, onGenerate, generating = false, locked = false, licenseCode = "", onClose }: Props) {
   const base = useId();
   const [tab, setTab] = usePersistentState<TabId>("prompt:tab", "template", isTab);
   const active = TABS.find((t) => t.id === tab) ?? TABS[0];
@@ -92,9 +94,11 @@ export default function PromptModal({ duration, ratio, onDuration, onRatio, laye
             layers={layers}
             onGenerate={onGenerate}
             busy={generating}
+            locked={locked}
           />
         ) : (
           <DirectPrompt
+            licenseCode={licenseCode}
             duration={duration}
             ratio={ratio}
             onDuration={onDuration}
@@ -102,6 +106,7 @@ export default function PromptModal({ duration, ratio, onDuration, onRatio, laye
             layers={layers}
             onGenerate={onGenerate}
             busy={generating}
+            locked={locked}
           />
         )}
       </div>

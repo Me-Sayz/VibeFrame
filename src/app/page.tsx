@@ -5,9 +5,11 @@ import CodeHub from "@/components/CodeHub";
 import ConfigTabs from "@/components/ConfigTabs";
 import FloatingPanel from "@/components/FloatingPanel";
 import HistoryModal from "@/components/HistoryModal";
+import LicenseModal from "@/components/LicenseModal";
 import PromptModal from "@/components/PromptModal";
 import Viewport from "@/components/Viewport";
 import { btn, card } from "@/components/ui";
+import { useLicense } from "@/hooks/useLicense";
 import { usePlayer } from "@/hooks/usePlayer";
 import { useStudio } from "@/hooks/useStudio";
 import { renderParams } from "@/lib/presets";
@@ -19,6 +21,9 @@ export default function Home() {
   const [promptWithLayers, setPromptWithLayers] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const license = useLicense();
+  const [licenseOpen, setLicenseOpen] = useState(false);
+  const [licenseNotice, setLicenseNotice] = useState<string | null>(null);
   const layerNames = useMemo(() => studio.layers.map((l) => l.name), [studio.layers]);
 
   const view = studio.result ?? { ratio: studio.ratio, duration: studio.duration };
@@ -61,6 +66,13 @@ export default function Home() {
             className={`${btn.small} !px-4 !py-2 !text-sm`}
           >
             🕘 Riwayat
+          </button>
+          <button
+            onClick={() => setLicenseOpen(true)}
+            aria-haspopup="dialog"
+            className={`${license.active ? btn.smallSun : btn.small} !px-4 !py-2 !text-sm`}
+          >
+            {license.active ? "👑 Premium" : "🔑 Lisensi"}
           </button>
           <button onClick={studio.toggleDark} className={`${btn.small} !px-4 !py-2 !text-sm`} aria-label="Ganti tema">
             {studio.dark ? "☀️ Terang" : "🌙 Gelap"}
@@ -169,10 +181,22 @@ export default function Home() {
           layers={promptWithLayers ? studio.layers : []}
           onDropLayers={() => setPromptWithLayers(false)}
           generating={studio.generating}
+          locked={!license.active}
+          licenseCode={license.active ? license.code : ""}
           onGenerate={async (prompt) => {
             setPromptOpen(false);
-            const outcome = await studio.generate(prompt);
-            if (outcome === "rejected") setTerminalOpen(true);
+            if (!license.active) {
+              setLicenseNotice("Buat Animasi (AI) butuh lisensi. Masukkan kode lisensi di bawah.");
+              setLicenseOpen(true);
+              return;
+            }
+            const outcome = await studio.generate(prompt, license.code);
+            if (outcome.status === "rejected") setTerminalOpen(true);
+            if (outcome.status === "license") {
+              license.refresh();
+              setLicenseNotice(outcome.message ?? "Lisensi tidak valid.");
+              setLicenseOpen(true);
+            }
           }}
           onClose={() => setPromptOpen(false)}
         />
@@ -190,6 +214,17 @@ export default function Home() {
           onRemove={studio.history.remove}
           onClear={studio.history.clear}
           onClose={() => setHistoryOpen(false)}
+        />
+      )}
+
+      {licenseOpen && (
+        <LicenseModal
+          license={license}
+          notice={licenseNotice}
+          onClose={() => {
+            setLicenseOpen(false);
+            setLicenseNotice(null);
+          }}
         />
       )}
 

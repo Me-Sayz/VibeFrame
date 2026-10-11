@@ -2,38 +2,64 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePersistentState } from "@/hooks/usePersistentState";
-import { IDEA_MAX, buildDirectPrompt, isIdeaValid, type PromptLayer } from "@/lib/prompt";
+import { refineIdea } from "@/lib/ai";
+import { IDEA_MAX, REFINE_MAX, buildDirectPrompt, isIdeaValid, type PromptLayer } from "@/lib/prompt";
+import { isAbort } from "@/lib/render";
 import { RATIO_KEYS, type Ratio } from "@/types";
 import { btn, field, mono } from "./ui";
 
 interface Props {
   duration: number;
   ratio: Ratio;
-     onDuration: (value: number) => void;
-     layers?: PromptLayer[];
+  onDuration: (value: number) => void;
   onRatio: (value: Ratio) => void;
+  layers?: PromptLayer[];
   onGenerate?: (prompt: string) => void;
   busy?: boolean;
+  locked?: boolean;
+  licenseCode?: string;
 }
 
 type CopyState = "idle" | "copied" | "failed";
 
 const isString = (v: unknown) => typeof v === "string";
 
-export default function DirectPrompt({ duration, ratio, onDuration, onRatio, layers, onGenerate, busy }: Props) {
+export default function DirectPrompt({
+  duration,
+  ratio,
+  onDuration,
+  onRatio,
+  layers,
+  onGenerate,
+  busy,
+  locked,
+  licenseCode = "",
+}: Props) {
   const [idea, setIdea] = usePersistentState("prompt:idea", "", isString);
   const [copyState, setCopyState] = useState<CopyState>("idle");
+  const [refining, setRefining] = useState(false);
+  const [previous, setPrevious] = useState<string | null>(null);
+  const [refineNote, setRefineNote] = useState<{ ok: boolean; text: string } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refineAbort = useRef<AbortController | null>(null);
 
-  useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+      refineAbort.current?.abort();
+    },
+    []
+  );
 
   const valid = isIdeaValid(idea);
   const prompt = useMemo(
     () => (valid ? buildDirectPrompt({ idea, duration, ratio, layers }) : ""),
     [valid, idea, duration, ratio, layers]
   );
+
+  const trimmedLength = idea.trim().length;
+  const tooLong = trimmedLength > REFINE_MAX;
+  const canRefine = trimmedLength >= 3 && !tooLong && !refining;
 
   const copy = async () => {
     let next: CopyState = "copied";
@@ -45,6 +71,35 @@ export default function DirectPrompt({ duration, ratio, onDuration, onRatio, lay
     setCopyState(next);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setCopyState("idle"), 2500);
+  };
+
+  const refine = async () => {
+    if (!canRefine) return;
+    const controller = new AbortController();
+    refineAbort.current = controller;
+    setRefining(true);
+    setRefineNote(null);
+    try {
+      const text = await refineIdea(idea.trim(), licenseCode, controller.signal);
+      setPrevious(idea);
+      setIdea(text);
+      setRefineNote({
+        ok: true,
+        text: "Deskripsi sudah diperbaiki dan diterjemahkan ke bahasa Inggris. Cek hasilnya, atau klik Urungkan untuk kembali.",
+      });
+    } catch (e) {
+      if (!isAbort(e)) setRefineNote({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      refineAbort.current = null;
+      setRefining(false);
+    }
+  };
+
+  const undo = () => {
+    if (previous === null) return;
+    setIdea(previous);
+    setPrevious(null);
+    setRefineNote(null);
   };
 
   return (
@@ -60,7 +115,12 @@ export default function DirectPrompt({ duration, ratio, onDuration, onRatio, lay
           rows={7}
           maxLength={IDEA_MAX}
           value={idea}
-          onChange={(e) => setIdea(e.target.value)}
+          readOnly={refining}
+          onChange={(e) => {
+            setIdea(e.target.value);
+            setPrevious(null);
+            setRefineNote(null);
+          }}
           placeholder="Contoh: Drone putih terbang pelan di atas awan, baling-baling berputar, latar belakang hijau polos. Gaya flat vector dengan warna lembut."
           className={`${field} resize-y`}
           aria-label="Deskripsi video"
@@ -69,6 +129,45 @@ export default function DirectPrompt({ duration, ratio, onDuration, onRatio, lay
       <p className="text-xs opacity-70">
         Tulis seperti memberi brief ke desainer: objek, gerakan, warna, dan latar. Aturan visual, motion, dan kode ditambahkan otomatis.
       </p>
+
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {refining ? (
+            <button onClick={() => refineAbort.current?.abort()} className={btn.small}>
+              ✕ Batal
+            </button>
+          ) : (
+            <button onClick={() => void refine()} disabled={!canRefine} className={btn.smallSun}>
+              ✨ Perbaiki dengan AI
+            </button>
+          )}
+          {previous !== null && !refining && (
+            <button onClick={undo} className={btn.small}>
+              ↩ Urungkan
+            </button>
+          )}
+          {refining && (
+            <span role="status" className="text-xs font-bold">
+              ⏳ AI memperbaiki deskripsi…
+            </span>
+          )}
+        </div>
+        <p className="text-xs opacity-70">
+          {tooLong
+            ? previous !== null
+              ? `Sudah diperbaiki. Fitur ini hanya untuk deskripsi singkat (maksimal ${REFINE_MAX} karakter), klik Urungkan untuk kembali ke tulisan awal.`
+              : `Terlalu panjang untuk fitur ini (maksimal ${REFINE_MAX} karakter).`
+            : "Gratis untuk semua. AI menjelaskan idemu lebih detail dalam bahasa Inggris, karena AI pembuat animasi lebih paham brief berbahasa Inggris."}
+        </p>
+        {refineNote && (
+          <p
+            role={refineNote.ok ? "status" : "alert"}
+            className={`rounded-lg border-[3px] border-ink p-2 text-xs font-bold text-black ${refineNote.ok ? "bg-lime" : "bg-pink"}`}
+          >
+            {refineNote.text}
+          </p>
+        )}
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -118,7 +217,7 @@ export default function DirectPrompt({ duration, ratio, onDuration, onRatio, lay
 
       {onGenerate && (
         <button onClick={() => onGenerate(prompt)} disabled={!valid || busy} className={btn.secondary}>
-          {busy ? "⏳ AI sedang membuat…" : "✨ Buat Animasi (AI)"}
+          {busy ? "⏳ AI sedang membuat…" : locked ? "🔒 Buat Animasi (butuh lisensi)" : "✨ Buat Animasi (AI)"}
         </button>
       )}
 

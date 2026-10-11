@@ -4,6 +4,7 @@ export const THEME_MIN = 3;
 export const THEME_MAX = 500;
 export const IDEA_MIN = 3;
 export const IDEA_MAX = 2000;
+export const REFINE_MAX = 300;
 export const NOTE_MAX = 80;
 
 const INTRO_TITLE =
