@@ -1,6 +1,8 @@
 const API = "https://generativelanguage.googleapis.com/v1beta/models";
 const BUDGET_MS = 150_000;
 const MAX_MODELS = 5;
+const MAX_KEYS = 10;
+let rotation = 0;
 
 interface GeminiPart {
   text?: string;
@@ -36,6 +38,9 @@ const parseModels = (raw: string | undefined) =>
     .map((m) => m.trim())
     .filter(Boolean)
     .slice(0, MAX_MODELS);
+
+export const parseKeys = (raw: string | string[] | undefined) =>
+  [...new Set((Array.isArray(raw) ? raw.join(",") : (raw ?? "")).split(/[,\s]+/).filter(Boolean))].slice(0, MAX_KEYS);
 
 export const geminiModels = () => parseModels(process.env.GEMINI_MODELS ?? process.env.GEMINI_MODEL);
 
@@ -109,7 +114,7 @@ async function ask(model: string, key: string, prompt: string, o: GeminiOptions)
 
 export async function generateText(
   models: string[],
-  key: string,
+  keyOrKeys: string | string[],
   prompt: string,
   options: GeminiOptions
 ): Promise<GeminiResult> {
@@ -117,12 +122,31 @@ export async function generateText(
   const notes: string[] = [];
   let last: Attempt = { error: "Tidak ada model yang dicoba.", status: 502, retry: false };
 
+  const all = parseKeys(keyOrKeys);
+  if (all.length === 0) return { ok: false, error: "API key belum diatur.", status: 500 };
+  // Putar kunci pertama tiap permintaan supaya beban terbagi rata.
+  const offset = rotation++ % all.length;
+  const keys = [...all.slice(offset), ...all.slice(0, offset)];
+  const dead = new Set<string>();
+
   for (const model of models) {
+    const usable = keys.filter((k) => !dead.has(k));
+    if (usable.length === 0) break;
+    for (const key of usable) {
+      if (notes.length > 0 && (Date.now() - started > BUDGET_MS || options.signal?.aborted)) break;
+      last = await ask(model, key, prompt, options);
+      if (last.text) return { ok: true, text: last.text, model };
+      const label = keys.length > 1 ? `${model} (key ${all.indexOf(key) + 1})` : model;
+      notes.push(`${label}: ${last.error}`);
+      if (last.status === 401 || last.status === 403 || /ditolak Gemini/.test(last.error ?? "")) {
+        dead.add(key);
+        continue;
+      }
+      if (last.status === 429) continue; // kuota key ini habis: coba key berikutnya
+      break; // error lain: pindah ke model berikutnya
+    }
     if (notes.length > 0 && (Date.now() - started > BUDGET_MS || options.signal?.aborted)) break;
-    last = await ask(model, key, prompt, options);
-    if (last.text) return { ok: true, text: last.text, model };
-    notes.push(`${model}: ${last.error}`);
-    if (!last.retry) break;
+    if (!last.retry && !dead.size) break;
   }
 
   const error = notes.length > 1 ? `Semua model gagal. ${notes.join(" | ")}` : (last.error ?? "Gagal.");
