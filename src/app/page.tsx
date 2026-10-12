@@ -6,13 +6,14 @@ import ConfigTabs from "@/components/ConfigTabs";
 import FloatingPanel from "@/components/FloatingPanel";
 import HistoryModal from "@/components/HistoryModal";
 import LicenseModal from "@/components/LicenseModal";
+import MicrostockModal from "@/components/MicrostockModal";
 import PromptModal from "@/components/PromptModal";
 import Viewport from "@/components/Viewport";
 import { btn, card } from "@/components/ui";
 import { useLicense } from "@/hooks/useLicense";
 import { usePlayer } from "@/hooks/usePlayer";
 import { useStudio } from "@/hooks/useStudio";
-import { renderParams } from "@/lib/presets";
+import { VIDEO_FORMATS, renderParams } from "@/lib/presets";
 
 export default function Home() {
   const studio = useStudio();
@@ -21,6 +22,7 @@ export default function Home() {
   const [promptWithLayers, setPromptWithLayers] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [microstockOpen, setMicrostockOpen] = useState(false);
   const license = useLicense();
   const [licenseOpen, setLicenseOpen] = useState(false);
   const [licenseNotice, setLicenseNotice] = useState<string | null>(null);
@@ -83,6 +85,13 @@ export default function Home() {
             🕘 Riwayat
           </button>
           <button
+            onClick={() => setMicrostockOpen(true)}
+            aria-haspopup="dialog"
+            className={`${btn.small} !px-4 !py-2 !text-sm`}
+          >
+            🏷️ Microstock
+          </button>
+          <button
             onClick={() => setLicenseOpen(true)}
             aria-haspopup="dialog"
             className={`${license.active ? btn.smallSun : btn.small} !px-4 !py-2 !text-sm`}
@@ -106,6 +115,8 @@ export default function Home() {
             onFps={studio.setFps}
             preset={studio.preset}
             onPreset={studio.setPreset}
+            format={studio.format}
+            onFormat={studio.setFormat}
             rendering={studio.rendering}
             logs={studio.logs}
             onClearLogs={studio.clearLogs}
@@ -156,15 +167,15 @@ export default function Home() {
           <div className={`${card} space-y-3 p-3`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="font-mono text-xs">
-                MP4 · {size.width}×{size.height} · {studio.fps} fps · {view.duration} detik
+                {VIDEO_FORMATS[studio.format].label} · {size.width}×{size.height} · {studio.fps} fps · {view.duration} detik
               </p>
               {studio.rendering ? (
                 <button onClick={studio.cancelRender} className={btn.small}>
                   ✕ Batal
                 </button>
               ) : (
-                <button onClick={studio.exportMp4} disabled={!studio.result} className={btn.medium}>
-                  ⬇ Render MP4
+                <button onClick={studio.exportVideo} disabled={!studio.result} className={btn.medium}>
+                  ⬇ Render {VIDEO_FORMATS[studio.format].label}
                 </button>
               )}
             </div>
@@ -243,6 +254,22 @@ export default function Home() {
           onClear={studio.history.clear}
           onClose={() => setHistoryOpen(false)}
         />
+      )}
+
+      {microstockOpen && (
+        <MicrostockModal
+  source={studio.result}
+  fps={studio.fps}
+  licenseActive={license.active}
+  licenseCode={license.active ? license.code : ""}
+  onNeedLicense={(message) => {
+    license.refresh();
+    setMicrostockOpen(false);
+    setLicenseNotice(message);
+    setLicenseOpen(true);
+  }}
+  onClose={() => setMicrostockOpen(false)}
+/>
       )}
 
       {licenseOpen && (

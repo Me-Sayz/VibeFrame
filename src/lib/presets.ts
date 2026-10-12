@@ -35,3 +35,12 @@ export function renderParams(ratio: Ratio, id: PresetId) {
 export function estimateMB(bitrate: number, duration: number) {
   return (bitrate * duration) / 8 / 1_000_000;
 }
+
+export type VideoFormat = "mp4" | "mov";
+
+export const VIDEO_FORMATS: Record<VideoFormat, { label: string; ext: string; mime: string }> = {
+  mp4: { label: "MP4", ext: "mp4", mime: "video/mp4" },
+  mov: { label: "MOV", ext: "mov", mime: "video/quicktime" },
+};
+
+export const VIDEO_FORMAT_IDS = Object.keys(VIDEO_FORMATS) as VideoFormat[];

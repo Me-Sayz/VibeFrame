@@ -1,4 +1,5 @@
-import type { PromptSettings, Ratio } from "@/types";
+import { CONCEPT_INFO, STYLE_INFO } from "@/data/visuals";
+import type { Concept, PromptSettings, Ratio, Style } from "@/types";
 
 export const THEME_MIN = 3;
 export const THEME_MAX = 500;
@@ -12,35 +13,45 @@ const INTRO_TITLE =
 const INTRO = [INTRO_TITLE, "Buat kode JavaScript Canvas lengkap untuk VibeFrame berdasarkan pengaturan berikut:"];
 const INTRO_DIRECT = [INTRO_TITLE, "Buat kode JavaScript Canvas lengkap untuk VibeFrame berdasarkan deskripsi berikut:"];
 
+const NO_BRAND =
+  "Jangan tambahkan teks, logo, brand, watermark, atau karakter berlisensi, kecuali teks yang memang diminta di deskripsi.";
+const NO_BRAND_LAYERS =
+  "Jangan tambahkan teks, logo, brand, watermark, atau karakter berlisensi selain yang ada di layer gambar, kecuali teks yang memang diminta di deskripsi.";
+
+const BRAND_OK =
+  "Teks, logo, brand, atau karakter yang disebut di deskripsi boleh digambar dengan Canvas API (bentuk, path, dan teks). Jangan memuat gambar dari luar.";
+
 const VISUAL_RULES = [
-  "Visual harus premium, modern, profesional, dan komersial.",
-  "Visual harus cocok untuk microstock.",
-  "Komposisi harus rapi, seimbang, dan tidak menumpuk.",
-  "Objek utama harus terlihat jelas.",
-  "Hindari objek keluar dari frame.",
-  "Hindari teks tertutup objek.",
-  "Jangan gunakan logo, brand, watermark, karakter berlisensi, atau asset eksternal.",
+  "Komposisi rapi dan seimbang. Objek utama terlihat jelas dan tidak terpotong frame, dengan margin aman sekitar 8% dari tepi.",
+  "Gunakan palet harmonis maksimal 4–5 warna utama, dengan kontras jelas antara objek utama dan latar.",
+  NO_BRAND,
+  "Jika ada teks, pastikan tidak tertutup objek.",
 ];
 
 const MOTION_RULES = [
-  "Animasi harus smooth sepanjang durasi.",
-  "Buat intro, animasi utama, dan ending yang rapi.",
-  "Gunakan easing agar gerakan terlihat halus.",
-  "Tambahkan micro movement agar visual tidak diam.",
-  "Gunakan transisi antar scene jika jumlah scene lebih dari 1.",
-  "Hindari flicker berlebihan.",
-  "Hindari gerakan terlalu cepat.",
+  "Gerakan smooth sepanjang durasi, tanpa bagian yang diam. Tambahkan micro movement agar visual terasa hidup.",
+  "Tulis fungsi easing sendiri (misalnya easeInOutCubic) dan pakai untuk semua gerakan. Hindari gerakan linear kecuali memang diminta.",
+  "Gunakan transisi halus antar scene jika jumlah scene lebih dari 1.",
+  "Hindari flicker dan gerakan terlalu cepat.",
 ];
 
-const EXTRA_MOTION = ["Ending harus menyatu dengan awal (fade ke warna latar) agar video bisa di-loop."];
+const LINEAR_RULES = ["Buat intro, animasi utama, dan ending yang rapi (alur linear, tidak perlu bisa di-loop)."];
+
+const loopRules = (duration: number) => [
+  "LOOP MULUS: video harus bisa diputar berulang tanpa terlihat sambungan.",
+  `Tulis const DURATION = ${duration}; lalu const p = time / DURATION; (p bergerak dari 0 sampai 1).`,
+  "Buat semua gerakan periodik: pakai Math.sin dan Math.cos dengan 2 * Math.PI * bilangan bulat * p, atau gerakan yang kembali ke posisi awal. Kondisi di p = 1 harus sama dengan p = 0.",
+  "Jangan fade ke warna latar di akhir, dan jangan ada gerakan satu arah yang tidak kembali ke awal.",
+  "Jika ada beberapa scene, scene terakhir bertransisi kembali ke scene pertama.",
+];
+
+const CODE_EXTERNAL = "Hanya Canvas API murni: tanpa library, gambar, logo, font, atau asset eksternal.";
+const CODE_EXTERNAL_LAYERS =
+  "Hanya Canvas API murni: tanpa library, font, atau asset dari luar. Gambar hanya boleh berasal dari layer gambar yang disediakan.";
 
 const CODE_RULES_BEFORE_SIGNATURE = [
-  "Output hanya kode JavaScript.",
-  "Jangan gunakan HTML.",
-  "Jangan gunakan CSS.",
-  "Jangan gunakan library eksternal.",
-  "Jangan gunakan gambar, logo, font eksternal, atau asset eksternal.",
-  "Semua elemen visual harus dibuat langsung dengan Canvas API.",
+  "Output hanya kode JavaScript, tanpa HTML dan CSS.",
+  CODE_EXTERNAL,
   "Kode wajib menggunakan function berikut:",
 ];
 
@@ -80,60 +91,50 @@ function layersSection(layers: PromptLayer[]): string[] {
   ];
 }
 
+const BACKGROUND = "Mulai setiap frame dengan menggambar background penuh dengan Canvas.";
+const BACKGROUND_LAYERS =
+  "Mulai setiap frame dengan menggambar background penuh (dengan Canvas, atau layer gambar yang dipakai sebagai background).";
+
 const CODE_RULES_AFTER_SIGNATURE = [
   "Parameter time menggunakan detik, bukan milidetik.",
-  "Kode harus responsive mengikuti width dan height.",
-  "Background harus dibuat dengan Canvas.",
-  "Gunakan warna modern dan premium.",
-  "Gunakan efek secukupnya, jangan terlalu berat.",
-  "Jangan ada error syntax.",
+  BACKGROUND,
+  "Tentukan const s = Math.min(width, height) / 1000 lalu ukur semua ukuran, ketebalan garis, dan teks dengan s. Hitung posisi dari width dan height supaya pas di semua rasio.",
+  "Bungkus setiap transformasi (translate, rotate, scale, globalAlpha) dengan ctx.save() dan ctx.restore().",
+  "Jangan pakai Math.random() atau Date.now(). Untuk variasi (partikel, bintang, dan sebagainya) pakai PRNG dengan seed tetap atau hitung dari nomor indeks, supaya setiap frame konsisten.",
+  "Tulis fungsi bantu (clamp, lerp, easing, PRNG) sebagai fungsi murni di luar draw(), dan jangan menyimpan state antar frame: draw() bisa dipanggil dengan time berurutan, mundur, atau melompat.",
+  "Batasi efek: maksimal sekitar 200 bentuk per frame, hindari ctx.shadowBlur besar dan ctx.filter, supaya render 4K tetap cepat.",
 ];
 
 const EXTRA_CODE = [
-  "Jangan gunakan while(true) atau for(;;). Semua gerakan dihitung dari parameter time.",
+  "Jangan gunakan while(true) atau for(;;).",
   "Bungkus output dalam satu blok ```javascript tanpa penjelasan.",
 ];
 
 const bullets = (rules: string[]) => rules.map((r) => `· ${r}`);
 
-function withLayers(rules: string[], swaps: [string, string][]): string[] {
-  return rules.map((r) => swaps.find(([from]) => from === r)?.[1] ?? r);
+function swap(rules: string[], from: string, to: string): string[] {
+  return rules.map((r) => (r === from ? to : r));
 }
 
-function rulesSection(layers: PromptLayer[] = []): string[] {
+interface RuleOptions {
+  layers?: PromptLayer[];
+  duration: number;
+  loop: boolean;
+  brand: boolean;
+}
+
+function rulesSection({ layers = [], duration, loop, brand }: RuleOptions): string[] {
   const has = layers.length > 0;
-  const visual = has
-    ? withLayers(VISUAL_RULES, [
-        [
-          "Jangan gunakan logo, brand, watermark, karakter berlisensi, atau asset eksternal.",
-          "Jangan tambahkan logo, brand, watermark, atau karakter berlisensi selain yang ada di layer gambar.",
-        ],
-      ])
-    : VISUAL_RULES;
-  const before = has
-    ? withLayers(CODE_RULES_BEFORE_SIGNATURE, [
-        [
-          "Jangan gunakan gambar, logo, font eksternal, atau asset eksternal.",
-          "Jangan gunakan font eksternal atau asset dari luar. Gambar hanya boleh berasal dari layer gambar yang disediakan.",
-        ],
-        [
-          "Semua elemen visual harus dibuat langsung dengan Canvas API.",
-          "Semua elemen visual selain layer gambar harus dibuat langsung dengan Canvas API.",
-        ],
-      ])
-    : CODE_RULES_BEFORE_SIGNATURE;
-  const after = has
-    ? withLayers(CODE_RULES_AFTER_SIGNATURE, [
-        ["Background harus dibuat dengan Canvas.", "Background dibuat dengan Canvas, kecuali ada layer gambar yang dipakai sebagai background."],
-      ])
-    : CODE_RULES_AFTER_SIGNATURE;
+  const visual = swap(VISUAL_RULES, NO_BRAND, brand ? BRAND_OK : has ? NO_BRAND_LAYERS : NO_BRAND);
+  const before = has ? swap(CODE_RULES_BEFORE_SIGNATURE, CODE_EXTERNAL, CODE_EXTERNAL_LAYERS) : CODE_RULES_BEFORE_SIGNATURE;
+  const after = has ? swap(CODE_RULES_AFTER_SIGNATURE, BACKGROUND, BACKGROUND_LAYERS) : CODE_RULES_AFTER_SIGNATURE;
   return [
     ...(has ? [...layersSection(layers), ""] : []),
     "ATURAN VISUAL:",
     ...bullets(visual),
     "",
     "ATURAN MOTION:",
-    ...bullets([...MOTION_RULES, ...EXTRA_MOTION]),
+    ...bullets([...MOTION_RULES, ...(loop ? loopRules(duration) : LINEAR_RULES)]),
     "",
     "ATURAN KODE:",
     ...bullets(before),
@@ -170,6 +171,15 @@ export interface PromptInput extends PromptSettings {
   duration: number;
   ratio: Ratio;
   layers?: PromptLayer[];
+  loop?: boolean;
+  brand?: boolean;
+}
+
+function visualNotes(style?: Style | "", concept?: Concept | ""): string[] {
+  const lines: string[] = [];
+  if (style) lines.push(`· Gaya ${style}: ${STYLE_INFO[style].ai}`);
+  if (concept) lines.push(`· Konsep ${concept}: ${CONCEPT_INFO[concept].ai}`);
+  return lines.length > 0 ? ["PENJELASAN VISUAL:", ...lines, ""] : [];
 }
 
 export function buildPrompt(p: PromptInput): string {
@@ -189,7 +199,8 @@ export function buildPrompt(p: PromptInput): string {
     "KONSEP VISUAL:",
     `[${p.concept}]`,
     "",
-    ...rulesSection(p.layers),
+    ...visualNotes(p.style, p.concept),
+    ...rulesSection({ layers: p.layers, duration: p.duration, loop: p.loop ?? true, brand: p.brand ?? false }),
   ].join("\n");
 }
 
@@ -198,6 +209,10 @@ export interface DirectInput {
   duration: number;
   ratio: Ratio;
   layers?: PromptLayer[];
+  loop?: boolean;
+  brand?: boolean;
+  style?: Style | "";
+  concept?: Concept | "";
 }
 
 export function buildDirectPrompt(p: DirectInput): string {
@@ -210,7 +225,10 @@ export function buildDirectPrompt(p: DirectInput): string {
     `[${p.duration} detik]`,
     "RASIO:",
     `[${p.ratio}]`,
+    ...(p.style ? ["GAYA VISUAL:", `[${p.style}]`] : []),
+    ...(p.concept ? ["KONSEP VISUAL:", `[${p.concept}]`] : []),
     "",
-    ...rulesSection(p.layers),
+    ...visualNotes(p.style, p.concept),
+    ...rulesSection({ layers: p.layers, duration: p.duration, loop: p.loop ?? true, brand: p.brand ?? false }),
   ].join("\n");
 }

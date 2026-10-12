@@ -5,13 +5,16 @@ import { THEME_CATEGORIES, searchThemes } from "@/data/themes";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { THEME_MAX, buildPrompt, isThemeValid, type PromptLayer } from "@/lib/prompt";
 import { CONCEPTS, RATIO_KEYS, SCENE_OPTIONS, STYLES, type Concept, type Ratio, type Style } from "@/types";
+import BrandToggle from "./BrandToggle";
+import LoopToggle from "./LoopToggle";
+import VisualPickers from "./VisualPickers";
 import { btn, field, mono } from "./ui";
 
 interface Props {
   duration: number;
   ratio: Ratio;
-     onDuration: (value: number) => void;
-     layers?: PromptLayer[];
+  onDuration: (value: number) => void;
+  layers?: PromptLayer[];
   onRatio: (value: Ratio) => void;
   onGenerate?: (prompt: string) => void;
   busy?: boolean;
@@ -21,6 +24,7 @@ interface Props {
 type CopyState = "idle" | "copied" | "failed";
 
 const isString = (v: unknown) => typeof v === "string";
+const isBool = (v: unknown) => typeof v === "boolean";
 const oneOf = (list: readonly unknown[]) => (v: unknown) => list.includes(v);
 const CATEGORY_IDS = THEME_CATEGORIES.map((c) => c.id);
 
@@ -30,6 +34,8 @@ export default function PromptBuilder({ duration, ratio, onDuration, onRatio, la
   const [scenes, setScenes] = usePersistentState<number>("prompt:scenes", 1, oneOf(SCENE_OPTIONS));
   const [style, setStyle] = usePersistentState<Style>("prompt:style", "Vector", oneOf(STYLES));
   const [concept, setConcept] = usePersistentState<Concept>("prompt:concept", "Flat vector", oneOf(CONCEPTS));
+  const [loop, setLoop] = usePersistentState("prompt:loop", true, isBool);
+  const [brand, setBrand] = usePersistentState("prompt:brand", false, isBool);
   const [query, setQuery] = useState("");
   const [copyState, setCopyState] = useState<CopyState>("idle");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -43,8 +49,8 @@ export default function PromptBuilder({ duration, ratio, onDuration, onRatio, la
   const valid = isThemeValid(theme);
 
   const prompt = useMemo(
-    () => (valid ? buildPrompt({ theme, scenes, style, concept, duration, ratio, layers }) : ""),
-    [valid, theme, scenes, style, concept, duration, ratio, layers]
+    () => (valid ? buildPrompt({ theme, scenes, style, concept, duration, ratio, layers, loop, brand }) : ""),
+    [valid, theme, scenes, style, concept, duration, ratio, layers, loop, brand]
   );
 
   const copy = async () => {
@@ -151,24 +157,12 @@ export default function PromptBuilder({ duration, ratio, onDuration, onRatio, la
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block">
-          <span className="mb-1 block text-xs font-bold uppercase">Gaya visual</span>
-          <select className={field} value={style} onChange={(e) => setStyle(e.target.value as Style)}>
-            {STYLES.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs font-bold uppercase">Konsep visual</span>
-          <select className={field} value={concept} onChange={(e) => setConcept(e.target.value as Concept)}>
-            {CONCEPTS.map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <VisualPickers
+        style={style}
+        concept={concept}
+        onStyle={(v) => v && setStyle(v)}
+        onConcept={(v) => v && setConcept(v)}
+      />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -203,6 +197,9 @@ export default function PromptBuilder({ duration, ratio, onDuration, onRatio, la
         </label>
       </div>
       <p className="text-xs opacity-70">Durasi dan rasio sama dengan pengaturan render, mengubahnya di sini juga mengubah di sana.</p>
+
+      <LoopToggle value={loop} onChange={setLoop} />
+      <BrandToggle value={brand} onChange={setBrand} />
 
       <textarea
         readOnly

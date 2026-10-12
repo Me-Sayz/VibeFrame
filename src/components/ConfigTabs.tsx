@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
-import { BIG_FILE_MB, PRESETS, estimateMB, renderParams, type PresetId } from "@/lib/presets";
+import {
+  BIG_FILE_MB,
+  PRESETS,
+  VIDEO_FORMATS,
+  VIDEO_FORMAT_IDS,
+  estimateMB,
+  renderParams,
+  type PresetId,
+  type VideoFormat,
+} from "@/lib/presets";
 import { RATIO_KEYS, type LogEntry, type Ratio } from "@/types";
 import type { AssetLayer, Cutout } from "@/types/assets";
 import AssetsPanel from "./AssetsPanel";
@@ -30,6 +39,8 @@ interface Props {
   onFps: (value: number) => void;
   preset: PresetId;
   onPreset: (value: PresetId) => void;
+  format: VideoFormat;
+  onFormat: (value: VideoFormat) => void;
   rendering: boolean;
   logs: LogEntry[];
   onClearLogs: () => void;
@@ -194,7 +205,25 @@ export default function ConfigTabs(p: Props) {
               </label>
             </div>
             <div>
-              <span className="mb-1 block text-xs font-bold uppercase">Resolusi MP4</span>
+              <span className="mb-1 block text-xs font-bold uppercase">Format file</span>
+              <div role="group" aria-label="Format file" className="grid grid-cols-2 gap-1.5">
+                {VIDEO_FORMAT_IDS.map((id) => (
+                  <button
+                    key={id}
+                    onClick={() => p.onFormat(id)}
+                    disabled={p.rendering}
+                    aria-pressed={p.format === id}
+                    className={`rounded-lg border-[3px] border-ink px-2 py-1.5 text-xs font-bold transition disabled:opacity-50 ${
+                      p.format === id ? "bg-sun text-black shadow-brut-sm" : "bg-card text-ink enabled:hover:bg-lime enabled:hover:text-black"
+                    }`}
+                  >
+                    {VIDEO_FORMATS[id].label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <span className="mb-1 block text-xs font-bold uppercase">Resolusi video</span>
               <div role="group" aria-label="Preset resolusi" className="grid grid-cols-2 gap-1.5">
                 {PRESETS.map((pr) => {
                   const x = renderParams(p.ratio, pr.id);
@@ -219,7 +248,7 @@ export default function ConfigTabs(p: Props) {
               </div>
             </div>
             <p className="font-mono text-xs">
-              MP4 berikutnya: {out.width}×{out.height} · {p.fps} fps · {p.duration} detik
+              {VIDEO_FORMATS[p.format].label} berikutnya: {out.width}×{out.height} · {p.fps} fps · {p.duration} detik
             </p>
             <p className="font-mono text-xs">Perkiraan ukuran: ±{sizeMB < 10 ? sizeMB.toFixed(1) : Math.round(sizeMB)} MB</p>
             {sizeMB > BIG_FILE_MB && (
@@ -230,7 +259,7 @@ export default function ConfigTabs(p: Props) {
             )}
             <p className="text-xs opacity-70">
               Durasi dan rasio dipakai saat kamu menekan Render kode. Preview yang sedang berjalan tidak berubah sebelum itu.
-              Frame rate dan resolusi dipakai saat Render MP4.
+              Format, frame rate, dan resolusi dipakai saat Render video.
             </p>
           </>
         )}

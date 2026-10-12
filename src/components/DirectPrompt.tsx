@@ -5,7 +5,10 @@ import { usePersistentState } from "@/hooks/usePersistentState";
 import { refineIdea } from "@/lib/ai";
 import { IDEA_MAX, REFINE_MAX, buildDirectPrompt, isIdeaValid, type PromptLayer } from "@/lib/prompt";
 import { isAbort } from "@/lib/render";
-import { RATIO_KEYS, type Ratio } from "@/types";
+import { CONCEPTS, RATIO_KEYS, STYLES, type Concept, type Ratio, type Style } from "@/types";
+import BrandToggle from "./BrandToggle";
+import LoopToggle from "./LoopToggle";
+import VisualPickers from "./VisualPickers";
 import { btn, field, mono } from "./ui";
 
 interface Props {
@@ -23,6 +26,8 @@ interface Props {
 type CopyState = "idle" | "copied" | "failed";
 
 const isString = (v: unknown) => typeof v === "string";
+const isBool = (v: unknown) => typeof v === "boolean";
+const oneOfOrEmpty = (list: readonly unknown[]) => (v: unknown) => v === "" || list.includes(v);
 
 export default function DirectPrompt({
   duration,
@@ -36,6 +41,10 @@ export default function DirectPrompt({
   licenseCode = "",
 }: Props) {
   const [idea, setIdea] = usePersistentState("prompt:idea", "", isString);
+  const [loop, setLoop] = usePersistentState("prompt:loop", true, isBool);
+  const [brand, setBrand] = usePersistentState("prompt:brand", false, isBool);
+  const [style, setStyle] = usePersistentState<Style | "">("prompt:dstyle", "", oneOfOrEmpty(STYLES));
+  const [concept, setConcept] = usePersistentState<Concept | "">("prompt:dconcept", "", oneOfOrEmpty(CONCEPTS));
   const [copyState, setCopyState] = useState<CopyState>("idle");
   const [refining, setRefining] = useState(false);
   const [previous, setPrevious] = useState<string | null>(null);
@@ -53,8 +62,8 @@ export default function DirectPrompt({
 
   const valid = isIdeaValid(idea);
   const prompt = useMemo(
-    () => (valid ? buildDirectPrompt({ idea, duration, ratio, layers }) : ""),
-    [valid, idea, duration, ratio, layers]
+    () => (valid ? buildDirectPrompt({ idea, duration, ratio, layers, loop, brand, style, concept }) : ""),
+    [valid, idea, duration, ratio, layers, loop, brand, style, concept]
   );
 
   const trimmedLength = idea.trim().length;
@@ -169,6 +178,8 @@ export default function DirectPrompt({
         )}
       </div>
 
+      <VisualPickers style={style} concept={concept} onStyle={setStyle} onConcept={setConcept} allowAuto />
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <div className="mb-1 flex justify-between text-xs font-bold uppercase">
@@ -201,6 +212,9 @@ export default function DirectPrompt({
           </select>
         </label>
       </div>
+
+      <LoopToggle value={loop} onChange={setLoop} />
+      <BrandToggle value={brand} onChange={setBrand} />
 
       <textarea
         readOnly

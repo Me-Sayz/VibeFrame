@@ -5,6 +5,8 @@ import { btn, field, sectionTitle } from "./ui";
 
 const INSTRUCTION_MAX = 1000;
 const FIT_TEXT = "Sesuaikan animasi agar pas dengan durasi dan rasio saat ini.";
+const LOOP_TEXT =
+  "Ubah agar video bisa di-loop mulus: keadaan di frame terakhir harus sama dengan frame pertama. Pakai gerakan periodik terhadap time / DURATION, tanpa fade ke warna latar dan tanpa loncatan.";
 
 interface Props {
   locked: boolean;
@@ -59,6 +61,9 @@ export default function FixPanel({ locked, busy, hasCode, problem, canUndo, onFi
       <div className="flex flex-wrap gap-2">
         <button onClick={() => setInstruction(FIT_TEXT)} disabled={busy} className={btn.small}>
           Sesuaikan durasi dan rasio
+        </button>
+        <button onClick={() => setInstruction(LOOP_TEXT)} disabled={busy} className={btn.small}>
+          Buat loop mulus
         </button>
         {canUndo && (
           <button onClick={onUndo} disabled={busy} className={btn.small}>

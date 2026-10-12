@@ -5,8 +5,8 @@ import { loadLayer, sanitizeName, uniqueName, withCutout } from "@/lib/assets";
 import { LicenseError, requestAnimation, requestFix } from "@/lib/ai";
 import { renderCover } from "@/lib/cover";
 import { lintCode } from "@/lib/lint";
-import { DEFAULT_PRESET, renderParams, type PresetId } from "@/lib/presets";
-import { isAbort, renderMp4 } from "@/lib/render";
+import { DEFAULT_PRESET, VIDEO_FORMATS, renderParams, type PresetId, type VideoFormat } from "@/lib/presets";
+import { isAbort, renderVideo } from "@/lib/render";
 import { extractCode, usedLayers, validateCode } from "@/lib/validate";
 import type { LogEntry, LogLevel, MotionResult, Ratio } from "@/types";
 import type { AssetLayer, Cutout } from "@/types/assets";
@@ -40,6 +40,7 @@ export function useStudio() {
   const [duration, setDuration] = useState(10);
   const [fps, setFps] = useState(30);
   const [preset, setPreset] = useState<PresetId>(DEFAULT_PRESET);
+  const [format, setFormat] = useState<VideoFormat>("mp4");
   const [coverTime, setCoverTime] = useState<number | null>(null);
   const [coverBusy, setCoverBusy] = useState(false);
   const [code, setCode] = useState("");
@@ -210,36 +211,38 @@ export function useStudio() {
     [layers, fail, commitRender]
   );
 
-  const exportMp4 = useCallback(async () => {
+  const exportVideo = useCallback(async () => {
     if (!result || abortRef.current) return;
     const controller = new AbortController();
     abortRef.current = controller;
     const { scale, bitrate, width, height } = renderParams(result.ratio, preset);
     setError(null);
     setProgress({ done: 0, total: 1 });
-    log("info", `Render MP4 mulai: ${width}×${height}, ${fps} fps, ${result.duration} detik, ${(bitrate / 1e6).toFixed(1)} Mbps`);
+    const kind = VIDEO_FORMATS[format];
+    log("info", `Render ${kind.label} mulai: ${width}×${height}, ${fps} fps, ${result.duration} detik, ${(bitrate / 1e6).toFixed(1)} Mbps`);
     try {
-      const out = await renderMp4({
+      const out = await renderVideo({
         code: result.code,
         ratio: result.ratio,
         duration: result.duration,
         fps,
+        format,
         scale,
         bitrate,
         assets: result.assets,
         signal: controller.signal,
         onProgress: (done, total) => setProgress({ done, total }),
       });
-      saveBlob(out.blob, `motion-${result.ratio.replace(":", "x")}-${out.width}x${out.height}-${Date.now()}.mp4`);
-      log("info", `Render MP4 selesai: ${out.width}×${out.height}, ${out.frames} frame, ${(out.blob.size / 1048576).toFixed(1)} MB`);
+      saveBlob(out.blob, `motion-${result.ratio.replace(":", "x")}-${out.width}x${out.height}-${Date.now()}.${kind.ext}`);
+      log("info", `Render ${kind.label} selesai: ${out.width}×${out.height}, ${out.frames} frame, ${(out.blob.size / 1048576).toFixed(1)} MB`);
     } catch (e) {
-      if (isAbort(e)) log("info", "Render MP4 dibatalkan");
+      if (isAbort(e)) log("info", `Render ${kind.label} dibatalkan`);
       else fail(`Render gagal: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       abortRef.current = null;
       setProgress(null);
     }
-  }, [result, fps, preset, log, fail]);
+  }, [result, fps, preset, format, log, fail]);
 
   const coverMax = result ? Math.max(0, result.duration - 1 / fps) : 0;
   const coverAt = Math.min(Math.max(coverTime ?? coverMax / 2, 0), coverMax);
@@ -407,7 +410,7 @@ export function useStudio() {
     renderCode, pasteFromClipboard, history, openHistory,
     generating: aiTask === "generate", fixing: aiTask === "fix", aiBusy: aiTask !== null,
     generate, cancelGenerate, fix, undoFix, canUndoFix, codeProblem, canRender,
-    progress, rendering: progress !== null, exportMp4, cancelRender,
+    progress, rendering: progress !== null, exportVideo, cancelRender, format, setFormat,
     coverAt, coverMax, setCoverTime, coverBusy, saveCover,
     dark, toggleDark,
   };

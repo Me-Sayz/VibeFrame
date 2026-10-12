@@ -20,10 +20,23 @@ export interface MotionResult {
   assets?: AssetLayer[];
 }
 
-export const STYLES = ["Vector", "Semi-3D", "Minimal"] as const;
+export const STYLES = ["Vector", "Semi-3D", "Minimal", "Cartoon", "Detail tinggi"] as const;
 export type Style = (typeof STYLES)[number];
 
-export const CONCEPTS = ["Flat vector", "Gradient modern", "Isometric", "Line art", "Neon glow"] as const;
+export const CONCEPTS = [
+  "Flat vector",
+  "Gradient modern",
+  "Isometric",
+  "Line art",
+  "Neon glow",
+  "Paper cut",
+  "Low poly",
+  "Pixel art",
+  "Glassmorphism",
+  "Retro synthwave",
+  "Duotone",
+  "Doodle",
+] as const;
 export type Concept = (typeof CONCEPTS)[number];
 
 export const SCENE_OPTIONS = [1, 2, 3, 4, 5, 6] as const;

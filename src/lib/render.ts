@@ -1,7 +1,7 @@
-import { BufferTarget, CanvasSource, Mp4OutputFormat, Output, Quality, canEncodeVideo } from "mediabunny";
+import { BufferTarget, CanvasSource, MovOutputFormat, Mp4OutputFormat, Output, Quality, canEncodeVideo } from "mediabunny";
 import type { AssetLayer } from "@/types/assets";
 import { createFrameWorker } from "./frameWorker";
-import { outputSize } from "./presets";
+import { VIDEO_FORMATS, outputSize, type VideoFormat } from "./presets";
 import type { Ratio } from "@/types";
 
 const BASE_BITRATE = 25_000_000;
@@ -11,6 +11,7 @@ export interface RenderOptions {
   ratio: Ratio;
   duration: number;
   fps: number;
+  format?: VideoFormat;
   scale?: number;
   bitrate?: number;
   assets?: AssetLayer[];
@@ -27,11 +28,12 @@ export interface RenderOutput {
 
 export const isAbort = (e: unknown) => e instanceof DOMException && e.name === "AbortError";
 
-export async function renderMp4(o: RenderOptions): Promise<RenderOutput> {
+export async function renderVideo(o: RenderOptions): Promise<RenderOutput> {
   if (typeof VideoEncoder === "undefined" || typeof OffscreenCanvas === "undefined" || typeof Worker === "undefined") {
-    throw new Error("Browser ini belum mendukung render MP4. Gunakan Chrome atau Edge terbaru.");
+    throw new Error("Browser ini belum mendukung render video. Gunakan Chrome atau Edge terbaru.");
   }
 
+  const format = o.format ?? "mp4";
   const scale = o.scale ?? 1;
   const { width, height } = outputSize(o.ratio, scale);
   const total = Math.max(1, Math.round(o.duration * o.fps));
@@ -44,7 +46,10 @@ export async function renderMp4(o: RenderOptions): Promise<RenderOutput> {
 
   const worker = await createFrameWorker(o.code, width, height, undefined, o.assets);
   const target = new BufferTarget();
-  const output = new Output({ format: new Mp4OutputFormat({ fastStart: "in-memory" }), target });
+  const output = new Output({
+    format: format === "mov" ? new MovOutputFormat({ fastStart: "in-memory" }) : new Mp4OutputFormat({ fastStart: "in-memory" }),
+    target,
+  });
   let finished = false;
 
   try {
@@ -68,7 +73,7 @@ export async function renderMp4(o: RenderOptions): Promise<RenderOutput> {
     await output.finalize();
     finished = true;
     if (!target.buffer) throw new Error("Hasil render kosong.");
-    return { blob: new Blob([target.buffer], { type: "video/mp4" }), width, height, frames: total };
+    return { blob: new Blob([target.buffer], { type: VIDEO_FORMATS[format].mime }), width, height, frames: total };
   } catch (e) {
     if (!finished) await output.cancel().catch(() => {});
     throw e;

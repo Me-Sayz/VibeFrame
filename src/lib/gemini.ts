@@ -18,6 +18,7 @@ export interface GeminiOptions {
   temperature: number;
   timeoutMs: number;
   signal?: AbortSignal;
+  accept?: (text: string) => boolean;
 }
 
 export type GeminiResult = { ok: true; text: string; model: string } | { ok: false; error: string; status: number };
@@ -99,6 +100,9 @@ async function ask(model: string, key: string, prompt: string, o: GeminiOptions)
   }
   if (candidate?.finishReason === "MAX_TOKENS") {
     return { error: "Balasan AI terpotong karena terlalu panjang.", status: 502, retry: true };
+  }
+  if (o.accept && !o.accept(text)) {
+    return { error: "Balasan model tidak sesuai format.", status: 502, retry: true };
   }
   return { text, status: 200, retry: false };
 }
