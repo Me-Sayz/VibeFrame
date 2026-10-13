@@ -20,7 +20,7 @@ export interface MotionResult {
   assets?: AssetLayer[];
 }
 
-export const STYLES = ["Vector", "Semi-3D", "Minimal", "Cartoon", "Detail tinggi"] as const;
+export const STYLES = ["Vector", "Semi-3D", "Minimal", "Cartoon", "Detail tinggi", "Glitch / Cyberpunk Distortion"] as const;
 export type Style = (typeof STYLES)[number];
 
 export const CONCEPTS = [
@@ -36,6 +36,10 @@ export const CONCEPTS = [
   "Retro synthwave",
   "Duotone",
   "Doodle",
+  "Plexus / Network Nodes",
+  "Abstract Fluid / Liquid Blob",
+  "Sci-Fi HUD",
+  "Memphis Style",
 ] as const;
 export type Concept = (typeof CONCEPTS)[number];
 

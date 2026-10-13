@@ -1,5 +1,6 @@
+import type { MagicSettings } from "@/lib/magic";
 import type { Site } from "@/lib/metadata";
-import type { Ratio } from "@/types";
+import { CONCEPTS, RATIO_KEYS, STYLES, type Ratio } from "@/types";
 import { isAbort } from "./render";
 
 export class LicenseError extends Error {}
@@ -84,4 +85,34 @@ export async function requestMetadata(
     throw new Error("Balasan AI kosong atau tidak sesuai format.");
   }
   return { text: data.text, keywords: data.keywords as string[], model: typeof data.model === "string" ? data.model : "" };
+}
+
+export interface MagicResult extends MagicSettings {
+  model: string;
+}
+
+export async function requestMagic(idea: string, signal: AbortSignal, license: string): Promise<MagicResult> {
+  const d = await call("/api/magic", { idea }, signal, license);
+  if (
+    typeof d.style !== "string" ||
+    !(STYLES as readonly string[]).includes(d.style) ||
+    typeof d.concept !== "string" ||
+    !(CONCEPTS as readonly string[]).includes(d.concept) ||
+    typeof d.ratio !== "string" ||
+    !(RATIO_KEYS as string[]).includes(d.ratio) ||
+    typeof d.duration !== "number" ||
+    !Number.isFinite(d.duration) ||
+    typeof d.reason !== "string" ||
+    !d.reason
+  ) {
+    throw new Error("Balasan AI kosong atau tidak sesuai format.");
+  }
+  return {
+    style: d.style as MagicResult["style"],
+    concept: d.concept as MagicResult["concept"],
+    ratio: d.ratio as Ratio,
+    duration: Math.round(d.duration),
+    reason: d.reason,
+    model: typeof d.model === "string" ? d.model : "",
+  };
 }

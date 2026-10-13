@@ -27,10 +27,11 @@ interface Props {
   generating?: boolean;
   locked?: boolean;
   licenseCode?: string;
+  onNeedLicense?: (message: string) => void;
   onClose: () => void;
 }
 
-export default function PromptModal({ duration, ratio, onDuration, onRatio, layers = [], onDropLayers, onGenerate, generating = false, locked = false, licenseCode = "", onClose }: Props) {
+export default function PromptModal({ duration, ratio, onDuration, onRatio, layers = [], onDropLayers, onGenerate, generating = false, locked = false, licenseCode = "", onNeedLicense, onClose }: Props) {
   const base = useId();
   const [tab, setTab] = usePersistentState<TabId>("prompt:tab", "template", isTab);
   const active = TABS.find((t) => t.id === tab) ?? TABS[0];
@@ -99,6 +100,7 @@ export default function PromptModal({ duration, ratio, onDuration, onRatio, laye
         ) : (
           <DirectPrompt
             licenseCode={licenseCode}
+            onNeedLicense={onNeedLicense}
             duration={duration}
             ratio={ratio}
             onDuration={onDuration}

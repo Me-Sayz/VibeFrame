@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePersistentState } from "@/hooks/usePersistentState";
-import { refineIdea } from "@/lib/ai";
+import { LicenseError, refineIdea, requestMagic } from "@/lib/ai";
+import { MAGIC_MIN } from "@/lib/magic";
 import { IDEA_MAX, REFINE_MAX, buildDirectPrompt, isIdeaValid, type PromptLayer } from "@/lib/prompt";
 import { isAbort } from "@/lib/render";
 import { CONCEPTS, RATIO_KEYS, STYLES, type Concept, type Ratio, type Style } from "@/types";
@@ -21,6 +22,14 @@ interface Props {
   busy?: boolean;
   locked?: boolean;
   licenseCode?: string;
+  onNeedLicense?: (message: string) => void;
+}
+
+interface Snapshot {
+  style: Style | "";
+  concept: Concept | "";
+  duration: number;
+  ratio: Ratio;
 }
 
 type CopyState = "idle" | "copied" | "failed";
@@ -39,6 +48,7 @@ export default function DirectPrompt({
   busy,
   locked,
   licenseCode = "",
+  onNeedLicense,
 }: Props) {
   const [idea, setIdea] = usePersistentState("prompt:idea", "", isString);
   const [loop, setLoop] = usePersistentState("prompt:loop", true, isBool);
@@ -51,11 +61,16 @@ export default function DirectPrompt({
   const [refineNote, setRefineNote] = useState<{ ok: boolean; text: string } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refineAbort = useRef<AbortController | null>(null);
+  const [magicking, setMagicking] = useState(false);
+  const [magicPrev, setMagicPrev] = useState<Snapshot | null>(null);
+  const [magicNote, setMagicNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const magicAbort = useRef<AbortController | null>(null);
 
   useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current);
       refineAbort.current?.abort();
+      magicAbort.current?.abort();
     },
     []
   );
@@ -68,7 +83,13 @@ export default function DirectPrompt({
 
   const trimmedLength = idea.trim().length;
   const tooLong = trimmedLength > REFINE_MAX;
-  const canRefine = trimmedLength >= 3 && !tooLong && !refining;
+  const canRefine = trimmedLength >= 3 && !tooLong && !refining && !magicking;
+  const canMagic = trimmedLength >= MAGIC_MIN && !magicking && !refining && !busy;
+
+  const forgetMagic = () => {
+    setMagicPrev(null);
+    setMagicNote(null);
+  };
 
   const copy = async () => {
     let next: CopyState = "copied";
@@ -111,6 +132,42 @@ export default function DirectPrompt({
     setRefineNote(null);
   };
 
+  const magic = async () => {
+    if (!canMagic) return;
+    if (locked) {
+      onNeedLicense?.("Atur otomatis (AI) butuh lisensi. Masukkan kode lisensi di bawah.");
+      return;
+    }
+    const controller = new AbortController();
+    magicAbort.current = controller;
+    setMagicking(true);
+    setMagicNote(null);
+    try {
+      const out = await requestMagic(idea.trim(), controller.signal, licenseCode);
+      setMagicPrev({ style, concept, duration, ratio });
+      setStyle(out.style);
+      setConcept(out.concept);
+      onDuration(out.duration);
+      onRatio(out.ratio);
+      setMagicNote({ ok: true, text: out.reason });
+    } catch (e) {
+      if (e instanceof LicenseError) onNeedLicense?.(e.message);
+      else if (!isAbort(e)) setMagicNote({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      magicAbort.current = null;
+      setMagicking(false);
+    }
+  };
+
+  const undoMagic = () => {
+    if (magicPrev === null) return;
+    setStyle(magicPrev.style);
+    setConcept(magicPrev.concept);
+    onDuration(magicPrev.duration);
+    onRatio(magicPrev.ratio);
+    forgetMagic();
+  };
+
   return (
     <div className="space-y-4">
       <label className="block">
@@ -124,11 +181,12 @@ export default function DirectPrompt({
           rows={7}
           maxLength={IDEA_MAX}
           value={idea}
-          readOnly={refining}
+          readOnly={refining || magicking}
           onChange={(e) => {
             setIdea(e.target.value);
             setPrevious(null);
             setRefineNote(null);
+            forgetMagic();
           }}
           placeholder="Contoh: Drone putih terbang pelan di atas awan, baling-baling berputar, latar belakang hijau polos. Gaya flat vector dengan warna lembut."
           className={`${field} resize-y`}
@@ -178,7 +236,54 @@ export default function DirectPrompt({
         )}
       </div>
 
-      <VisualPickers style={style} concept={concept} onStyle={setStyle} onConcept={setConcept} allowAuto />
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {magicking ? (
+            <button onClick={() => magicAbort.current?.abort()} className={btn.small}>
+              ✕ Batal
+            </button>
+          ) : (
+            <button onClick={() => void magic()} disabled={!canMagic} className={btn.smallSun}>
+              {locked ? "🔒 Atur otomatis (butuh lisensi)" : "✨ Atur otomatis"}
+            </button>
+          )}
+          {magicPrev !== null && !magicking && (
+            <button onClick={undoMagic} className={btn.small}>
+              ↩ Urungkan
+            </button>
+          )}
+          {magicking && (
+            <span role="status" className="text-xs font-bold">
+              ⏳ AI memilihkan pengaturan…
+            </span>
+          )}
+        </div>
+        <p className="text-xs opacity-70">
+          AI memilihkan gaya, konsep, durasi, dan rasio yang cocok untuk ideamu (minimal {MAGIC_MIN} karakter). Hasilnya mengisi pilihan di bawah dan masih bisa kamu ubah.
+        </p>
+        {magicNote && (
+          <p
+            role={magicNote.ok ? "status" : "alert"}
+            className={`rounded-lg border-[3px] border-ink p-2 text-xs font-bold text-black ${magicNote.ok ? "bg-lime" : "bg-pink"}`}
+          >
+            {magicNote.text}
+          </p>
+        )}
+      </div>
+
+      <VisualPickers
+        style={style}
+        concept={concept}
+        onStyle={(v) => {
+          setStyle(v);
+          forgetMagic();
+        }}
+        onConcept={(v) => {
+          setConcept(v);
+          forgetMagic();
+        }}
+        allowAuto
+      />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -191,7 +296,10 @@ export default function DirectPrompt({
             min={3}
             max={30}
             value={duration}
-            onChange={(e) => onDuration(Number(e.target.value))}
+            onChange={(e) => {
+              onDuration(Number(e.target.value));
+              forgetMagic();
+            }}
             aria-label="Durasi prompt"
             className="w-full"
           />
@@ -201,7 +309,10 @@ export default function DirectPrompt({
           <select
             className={field}
             value={ratio}
-            onChange={(e) => onRatio(e.target.value as Ratio)}
+            onChange={(e) => {
+              onRatio(e.target.value as Ratio);
+              forgetMagic();
+            }}
             aria-label="Rasio prompt"
           >
             {RATIO_KEYS.map((r) => (
@@ -230,7 +341,7 @@ export default function DirectPrompt({
       </button>
 
       {onGenerate && (
-        <button onClick={() => onGenerate(prompt)} disabled={!valid || busy} className={btn.secondary}>
+        <button onClick={() => onGenerate(prompt)} disabled={!valid || busy || magicking} className={btn.secondary}>
           {busy ? "⏳ AI sedang membuat…" : locked ? "🔒 Buat Animasi (butuh lisensi)" : "✨ Buat Animasi (AI)"}
         </button>
       )}

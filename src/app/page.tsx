@@ -222,6 +222,12 @@ export default function Home() {
           generating={studio.aiBusy}
           locked={!license.active}
           licenseCode={license.active ? license.code : ""}
+          onNeedLicense={(message) => {
+            license.refresh();
+            setPromptOpen(false);
+            setLicenseNotice(message);
+            setLicenseOpen(true);
+          }}
           onGenerate={async (prompt) => {
             setPromptOpen(false);
             if (!license.active) {
