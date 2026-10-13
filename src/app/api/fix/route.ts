@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { acquire, release } from "@/lib/aiLock";
 import { buildFixPrompt, parseFixBody } from "@/lib/fixPrompt";
-import { generateText, geminiModels } from "@/lib/gemini";
+import { generateText, geminiKeys, geminiModels } from "@/lib/gemini";
 import { reply, sameOrigin } from "@/lib/http";
 import { licenseMessage, verifyLicense } from "@/lib/license";
 import { isLimited } from "@/lib/rateLimit";
@@ -20,10 +20,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: licenseMessage(auth), reason: auth.reason }, { status: 401 });
   }
 
-  const key = process.env.GEMINI_API_KEY;
+  const key = geminiKeys();
   const models = geminiModels();
-  if (!key || models.length === 0) {
-    return reply("GEMINI_API_KEY dan GEMINI_MODELS belum diatur di .env.local. Isi keduanya lalu restart npm run dev.", 500);
+  if (key.length === 0 || models.length === 0) {
+    return reply("GEMINI_API_KEY (boleh beberapa, pisahkan koma) dan GEMINI_MODELS belum diatur di .env.local. Isi keduanya lalu restart npm run dev.", 500);
   }
 
   let body: unknown;

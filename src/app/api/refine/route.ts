@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateText, liteModels } from "@/lib/gemini";
+import { generateText, geminiKeys, liteModels } from "@/lib/gemini";
 import { reply, sameOrigin } from "@/lib/http";
 import { verifyLicense } from "@/lib/license";
 import { IDEA_MAX, REFINE_MAX } from "@/lib/prompt";
@@ -44,10 +44,10 @@ const tidy = (raw: string) => {
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return reply("Permintaan ditolak.", 403);
 
-  const key = process.env.GEMINI_API_KEY;
+  const key = geminiKeys();
   const models = liteModels();
-  if (!key || models.length === 0) {
-    return reply("GEMINI_API_KEY dan GEMINI_MODELS belum diatur di .env.local. Isi lalu restart npm run dev.", 500);
+  if (key.length === 0 || models.length === 0) {
+    return reply("GEMINI_API_KEY (boleh beberapa, pisahkan koma) dan GEMINI_MODELS belum diatur di .env.local. Isi lalu restart npm run dev.", 500);
   }
 
   let idea: unknown;

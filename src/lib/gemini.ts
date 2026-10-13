@@ -42,6 +42,9 @@ const parseModels = (raw: string | undefined) =>
 export const parseKeys = (raw: string | string[] | undefined) =>
   [...new Set((Array.isArray(raw) ? raw.join(",") : (raw ?? "")).split(/[,\s]+/).filter(Boolean))].slice(0, MAX_KEYS);
 
+export const geminiKeys = () =>
+  parseKeys([process.env.GEMINI_API_KEYS ?? "", process.env.GEMINI_API_KEY ?? ""]);
+
 export const geminiModels = () => parseModels(process.env.GEMINI_MODELS ?? process.env.GEMINI_MODEL);
 
 export const liteModels = () => {
@@ -51,7 +54,7 @@ export const liteModels = () => {
 
 const upstreamMessage = (status: number, detail: string) => {
   const extra = detail ? ` Detail: ${detail.slice(0, 200)}` : "";
-  if (status === 401 || status === 403) return `API key ditolak Gemini. Periksa GEMINI_API_KEY di .env.local.${extra}`;
+  if (status === 401 || status === 403) return `API key ditolak Gemini. Periksa GEMINI_API_KEY (atau GEMINI_API_KEYS) di .env.local.${extra}`;
   if (status === 404) return `Model tidak ditemukan. Cek nama model di AI Studio.${extra}`;
   if (status === 429) return "Kuota model ini habis atau terlalu banyak permintaan.";
   if (status === 500 || status === 503) return "Model sedang sibuk (high demand).";
