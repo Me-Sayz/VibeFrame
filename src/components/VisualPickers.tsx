@@ -3,7 +3,6 @@
 import { useId } from "react";
 import { CONCEPT_INFO, STYLE_INFO } from "@/data/visuals";
 import { findTemplate } from "@/data/templates";
-import { usePersistentState } from "@/hooks/usePersistentState";
 import { CONCEPTS, STYLES, type Concept, type Style } from "@/types";
 import TemplatePicker from "./TemplatePicker";
 import { field } from "./ui";
@@ -14,16 +13,15 @@ interface Props {
   onStyle: (value: Style | "") => void;
   onConcept: (value: Concept | "") => void;
   allowAuto?: boolean;
+  useTemplate: boolean;
+  onUseTemplate: (value: boolean) => void;
 }
 
 const AUTO_LABEL = "Otomatis (ikuti deskripsi)";
 const AUTO_HINT = "AI memilih sendiri yang paling cocok dengan deskripsimu.";
 
-const isBool = (v: unknown) => typeof v === "boolean";
-
-export default function VisualPickers({ style, concept, onStyle, onConcept, allowAuto }: Props) {
+export default function VisualPickers({ style, concept, onStyle, onConcept, allowAuto, useTemplate, onUseTemplate }: Props) {
   const labelBase = useId();
-  const [useTemplate, setUseTemplate] = usePersistentState("prompt:usetemplate", false, isBool);
 
   const match = findTemplate(style, concept);
   const isAuto = allowAuto && style === "" && concept === "";
@@ -33,7 +31,7 @@ export default function VisualPickers({ style, concept, onStyle, onConcept, allo
         <input
           type="checkbox"
           checked={useTemplate}
-          onChange={(e) => setUseTemplate(e.target.checked)}
+          onChange={(e) => onUseTemplate(e.target.checked)}
           className="mt-0.5 h-4 w-4 shrink-0"
           aria-label="Gunakan Template Kombinasi"
         />
@@ -65,6 +63,9 @@ export default function VisualPickers({ style, concept, onStyle, onConcept, allo
           <span className="mt-1 block text-xs opacity-70">
             {match ? match.description : isAuto ? AUTO_HINT : "Pilihan ini tidak cocok dengan template mana pun. Pilih template di atas atau matikan Template Kombinasi untuk mengubahnya manual."}
           </span>
+          {match && (
+            <span className="mt-1 block text-xs opacity-70">Arahan seni template ini ikut dikirim ke AI bersama gaya dan konsepnya.</span>
+          )}
           <span className="mt-1 block break-words text-xs font-bold">
             Gaya: {style || "Otomatis"} · Konsep: {concept || "Otomatis"}
           </span>

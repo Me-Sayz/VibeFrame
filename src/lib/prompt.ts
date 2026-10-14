@@ -173,12 +173,21 @@ export interface PromptInput extends PromptSettings {
   layers?: PromptLayer[];
   loop?: boolean;
   brand?: boolean;
+  template?: PromptTemplate;
 }
 
-function visualNotes(style?: Style | "", concept?: Concept | ""): string[] {
+export interface PromptTemplate {
+  name: string;
+  direction: string;
+}
+
+function visualNotes(style?: Style | "", concept?: Concept | "", template?: PromptTemplate): string[] {
   const lines: string[] = [];
   if (style) lines.push(`· Gaya ${style}: ${STYLE_INFO[style].ai}`);
   if (concept) lines.push(`· Konsep ${concept}: ${CONCEPT_INFO[concept].ai}`);
+  if (template) {
+    lines.push(`· Arahan template ${template.name}: ${template.direction} Ikuti arahan ini sebagai dasar, kecuali bertentangan dengan tema atau deskripsi video di atas.`);
+  }
   return lines.length > 0 ? ["PENJELASAN VISUAL:", ...lines, ""] : [];
 }
 
@@ -199,7 +208,7 @@ export function buildPrompt(p: PromptInput): string {
     "KONSEP VISUAL:",
     `[${p.concept}]`,
     "",
-    ...visualNotes(p.style, p.concept),
+    ...visualNotes(p.style, p.concept, p.template),
     ...rulesSection({ layers: p.layers, duration: p.duration, loop: p.loop ?? true, brand: p.brand ?? false }),
   ].join("\n");
 }
@@ -213,6 +222,7 @@ export interface DirectInput {
   brand?: boolean;
   style?: Style | "";
   concept?: Concept | "";
+  template?: PromptTemplate;
 }
 
 export function buildDirectPrompt(p: DirectInput): string {
@@ -228,7 +238,7 @@ export function buildDirectPrompt(p: DirectInput): string {
     ...(p.style ? ["GAYA VISUAL:", `[${p.style}]`] : []),
     ...(p.concept ? ["KONSEP VISUAL:", `[${p.concept}]`] : []),
     "",
-    ...visualNotes(p.style, p.concept),
+    ...visualNotes(p.style, p.concept, p.template),
     ...rulesSection({ layers: p.layers, duration: p.duration, loop: p.loop ?? true, brand: p.brand ?? false }),
   ].join("\n");
 }

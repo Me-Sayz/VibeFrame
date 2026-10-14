@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { findTemplate } from "@/data/templates";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { LicenseError, refineIdea, requestMagic } from "@/lib/ai";
 import { MAGIC_MIN } from "@/lib/magic";
@@ -53,6 +54,7 @@ export default function DirectPrompt({
   const [idea, setIdea] = usePersistentState("prompt:idea", "", isString);
   const [loop, setLoop] = usePersistentState("prompt:loop", true, isBool);
   const [brand, setBrand] = usePersistentState("prompt:brand", false, isBool);
+  const [useTemplate, setUseTemplate] = usePersistentState("prompt:usetemplate", false, isBool);
   const [style, setStyle] = usePersistentState<Style | "">("prompt:dstyle", "", oneOfOrEmpty(STYLES));
   const [concept, setConcept] = usePersistentState<Concept | "">("prompt:dconcept", "", oneOfOrEmpty(CONCEPTS));
   const [copyState, setCopyState] = useState<CopyState>("idle");
@@ -76,9 +78,10 @@ export default function DirectPrompt({
   );
 
   const valid = isIdeaValid(idea);
+  const template = useTemplate ? findTemplate(style, concept) : undefined;
   const prompt = useMemo(
-    () => (valid ? buildDirectPrompt({ idea, duration, ratio, layers, loop, brand, style, concept }) : ""),
-    [valid, idea, duration, ratio, layers, loop, brand, style, concept]
+    () => (valid ? buildDirectPrompt({ idea, duration, ratio, layers, loop, brand, style, concept, template }) : ""),
+    [valid, idea, duration, ratio, layers, loop, brand, style, concept, template]
   );
 
   const trimmedLength = idea.trim().length;
@@ -283,6 +286,8 @@ export default function DirectPrompt({
           forgetMagic();
         }}
         allowAuto
+        useTemplate={useTemplate}
+        onUseTemplate={setUseTemplate}
       />
 
       <div className="grid gap-3 sm:grid-cols-2">
