@@ -5,7 +5,7 @@ import { findTemplate } from "@/data/templates";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { LicenseError, refineIdea, requestMagic } from "@/lib/ai";
 import { MAGIC_MIN } from "@/lib/magic";
-import { IDEA_MAX, REFINE_MAX, buildDirectPrompt, isIdeaValid, type PromptLayer } from "@/lib/prompt";
+import { IDEA_MAX, REFINE_MAX, buildDirectPrompt, hasReference, isIdeaValid, type PromptLayer } from "@/lib/prompt";
 import { isAbort } from "@/lib/render";
 import { CONCEPTS, RATIO_KEYS, STYLES, type Concept, type Ratio, type Style } from "@/types";
 import BrandToggle from "./BrandToggle";
@@ -82,6 +82,14 @@ export default function DirectPrompt({
   const prompt = useMemo(
     () => (valid ? buildDirectPrompt({ idea, duration, ratio, layers, loop, brand, style, concept, template }) : ""),
     [valid, idea, duration, ratio, layers, loop, brand, style, concept, template]
+  );
+  const refs = hasReference(layers);
+  const generatePrompt = useMemo(
+    () =>
+      valid && refs
+        ? buildDirectPrompt({ idea, duration, ratio, layers, loop, brand, style, concept, template, withReference: false })
+        : prompt,
+    [valid, refs, prompt, idea, duration, ratio, layers, loop, brand, style, concept, template]
   );
 
   const trimmedLength = idea.trim().length;
@@ -346,7 +354,7 @@ export default function DirectPrompt({
       </button>
 
       {onGenerate && (
-        <button onClick={() => onGenerate(prompt)} disabled={!valid || busy || magicking} className={btn.secondary}>
+        <button onClick={() => onGenerate(generatePrompt)} disabled={!valid || busy || magicking} className={btn.secondary}>
           {busy ? "⏳ AI sedang membuat…" : locked ? "🔒 Buat Animasi (butuh lisensi)" : "✨ Buat Animasi (AI)"}
         </button>
       )}

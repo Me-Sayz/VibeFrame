@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { THEME_CATEGORIES, searchThemes } from "@/data/themes";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { findTemplate } from "@/data/templates";
-import { THEME_MAX, buildPrompt, isThemeValid, type PromptLayer } from "@/lib/prompt";
+import { THEME_MAX, buildPrompt, hasReference, isThemeValid, type PromptLayer } from "@/lib/prompt";
 import { CONCEPTS, RATIO_KEYS, SCENE_OPTIONS, STYLES, type Concept, type Ratio, type Style } from "@/types";
 import BrandToggle from "./BrandToggle";
 import LoopToggle from "./LoopToggle";
@@ -54,6 +54,14 @@ export default function PromptBuilder({ duration, ratio, onDuration, onRatio, la
   const prompt = useMemo(
     () => (valid ? buildPrompt({ theme, scenes, style, concept, duration, ratio, layers, loop, brand, template }) : ""),
     [valid, theme, scenes, style, concept, duration, ratio, layers, loop, brand, template]
+  );
+  const refs = hasReference(layers);
+  const generatePrompt = useMemo(
+    () =>
+      valid && refs
+        ? buildPrompt({ theme, scenes, style, concept, duration, ratio, layers, loop, brand, template, withReference: false })
+        : prompt,
+    [valid, refs, prompt, theme, scenes, style, concept, duration, ratio, layers, loop, brand, template]
   );
 
   const copy = async () => {
@@ -220,7 +228,7 @@ export default function PromptBuilder({ duration, ratio, onDuration, onRatio, la
       </button>
 
       {onGenerate && (
-        <button onClick={() => onGenerate(prompt)} disabled={!valid || busy} className={btn.secondary}>
+        <button onClick={() => onGenerate(generatePrompt)} disabled={!valid || busy} className={btn.secondary}>
           {busy ? "⏳ AI sedang membuat…" : locked ? "🔒 Buat Animasi (butuh lisensi)" : "✨ Buat Animasi (AI)"}
         </button>
       )}

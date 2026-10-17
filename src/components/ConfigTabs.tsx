@@ -12,7 +12,7 @@ import {
   type VideoFormat,
 } from "@/lib/presets";
 import { RATIO_KEYS, type LogEntry, type Ratio } from "@/types";
-import type { AssetLayer, Cutout } from "@/types/assets";
+import type { AssetLayer, Cutout, LayerMode } from "@/types/assets";
 import AssetsPanel from "./AssetsPanel";
 import CoverPanel from "./CoverPanel";
 import FixPanel from "./FixPanel";
@@ -58,6 +58,7 @@ interface Props {
   onLayerNote: (id: string, note: string) => void;
   onMoveLayer: (id: string, dir: -1 | 1) => void;
   onLayerCutout: (id: string, cutout: Cutout) => void;
+  onLayerMode: (id: string, mode: LayerMode) => void;
   onUseAi: () => void;
   hasCode: boolean;
   canRender: boolean;
@@ -273,6 +274,7 @@ export default function ConfigTabs(p: Props) {
             onNote={p.onLayerNote}
             onMove={p.onMoveLayer}
             onCutout={p.onLayerCutout}
+            onMode={p.onLayerMode}
             onUseAi={p.onUseAi}
           />
         )}

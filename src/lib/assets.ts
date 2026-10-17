@@ -196,5 +196,6 @@ export async function loadLayer(file: File, taken: string[]): Promise<AssetLayer
     bitmap: decoded.bitmap,
     source: decoded.bitmap,
     cutout: { on: false, tolerance: DEFAULT_TOLERANCE },
+    mode: "image",
   };
 }

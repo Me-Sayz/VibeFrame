@@ -9,7 +9,7 @@ import { DEFAULT_PRESET, VIDEO_FORMATS, renderParams, type PresetId, type VideoF
 import { isAbort, renderVideo } from "@/lib/render";
 import { extractCode, usedLayers, validateCode } from "@/lib/validate";
 import type { LogEntry, LogLevel, MotionResult, Ratio } from "@/types";
-import type { AssetLayer, Cutout } from "@/types/assets";
+import type { AssetLayer, Cutout, LayerMode } from "@/types/assets";
 import { useHistory, type HistoryEntry } from "./useHistory";
 
 const MAX_LOGS = 200;
@@ -86,6 +86,9 @@ export function useStudio() {
 
   const clearLogs = useCallback(() => setLogs([]), []);
 
+  const drawLayers = useMemo(() => layers.filter((l) => l.mode === "image"), [layers]);
+  const layerNames = useMemo(() => drawLayers.map((l) => l.name), [drawLayers]);
+
   const commitLayers = useCallback((next: AssetLayer[]) => {
     layersRef.current = next;
     setLayers(next);
@@ -125,6 +128,12 @@ export function useStudio() {
 
   const setLayerNote = useCallback(
     (id: string, note: string) => commitLayers(layersRef.current.map((l) => (l.id === id ? { ...l, note } : l))),
+    [commitLayers]
+  );
+
+  const setLayerMode = useCallback(
+    (id: string, mode: LayerMode) =>
+      commitLayers(layersRef.current.map((l) => (l.id === id ? { ...l, mode } : l))),
     [commitLayers]
   );
 
@@ -175,40 +184,40 @@ export function useStudio() {
       setRuntimeError(null);
       setCode(clean);
       runCounter.current += 1;
-      setResult({ code: clean, ratio: r, duration: d, runId: runCounter.current, assets: layers });
+      setResult({ code: clean, ratio: r, duration: d, runId: runCounter.current, assets: drawLayers });
       const parent =
-        parentCode && parentCode !== clean && lintCode(parentCode, layers.map((l) => l.name)).level === "clean"
+        parentCode && parentCode !== clean && lintCode(parentCode, layerNames).level === "clean"
           ? { code: parentCode, ratio: r, duration: d, layers: usedLayers(parentCode) }
           : undefined;
       addHistory({ code: clean, ratio: r, duration: d, layers: usedLayers(clean) }, parent);
-      log("info", `Render kode: ${r}, ${d} detik, ${layers.length} layer`);
+      log("info", `Render kode: ${r}, ${d} detik, ${drawLayers.length} layer`);
     },
-    [layers, addHistory, log]
+    [drawLayers, layerNames, addHistory, log]
   );
 
   const renderCode = useCallback(() => {
     const clean = extractCode(code);
-    const problem = validateCode(clean, layers.map((l) => l.name));
+    const problem = validateCode(clean, layerNames);
     if (problem) {
       fail(problem);
       return;
     }
     commitRender(clean, ratio, duration);
-  }, [code, ratio, duration, layers, fail, commitRender]);
+  }, [code, ratio, duration, layerNames, fail, commitRender]);
 
   const openHistory = useCallback(
     (entry: HistoryEntry) => {
       setRatio(entry.ratio);
       setDuration(entry.duration);
       setCode(entry.code);
-      const problem = validateCode(entry.code, layers.map((l) => l.name));
+      const problem = validateCode(entry.code, layerNames);
       if (problem) {
         fail(problem);
         return;
       }
       commitRender(entry.code, entry.ratio, entry.duration);
     },
-    [layers, fail, commitRender]
+    [layerNames, fail, commitRender]
   );
 
   const exportVideo = useCallback(async () => {
@@ -281,7 +290,7 @@ export function useStudio() {
         if (model) log("info", `Model AI: ${model}`);
         const clean = extractCode(text);
         setCode(clean);
-        const problem = validateCode(clean, layers.map((l) => l.name));
+        const problem = validateCode(clean, layerNames);
         if (problem) {
           fail(`Kode dari AI ditolak: ${problem} Kodenya sudah dimasukkan ke Terminal untuk dicek.`);
           return { status: "rejected" };
@@ -301,12 +310,11 @@ export function useStudio() {
         setAiTask(null);
       }
     },
-    [ratio, duration, layers, fail, log, commitRender]
+    [ratio, duration, layerNames, fail, log, commitRender]
   );
 
   const cancelGenerate = useCallback(() => aiAbortRef.current?.abort(), []);
 
-  const layerNames = useMemo(() => layers.map((l) => l.name), [layers]);
   const lint = useMemo(() => lintCode(code, layerNames), [code, layerNames]);
   const codeProblem = lint.level === "error" ? lint.message : (runtimeError ?? "");
   const canRender = lint.level === "clean" && progress === null;
@@ -338,7 +346,7 @@ export function useStudio() {
             error: codeProblem,
             duration,
             ratio,
-            layers: layers.map((l) => ({ name: l.name, width: l.width, height: l.height })),
+            layers: drawLayers.map((l) => ({ name: l.name, width: l.width, height: l.height })),
           },
           controller.signal,
           license
@@ -370,7 +378,7 @@ export function useStudio() {
         setAiTask(null);
       }
     },
-    [code, codeProblem, duration, ratio, layers, layerNames, fail, log, commitRender]
+    [code, codeProblem, duration, ratio, drawLayers, layerNames, fail, log, commitRender]
   );
 
   const undoFix = useCallback(() => {
@@ -404,7 +412,7 @@ export function useStudio() {
   return {
     ratio, setRatio, duration, setDuration, fps, setFps, preset, setPreset,
     code, setCode: editCode, result,
-    layers, addFiles, removeLayer, renameLayer, setLayerNote, moveLayer, setLayerCutout,
+    layers, layerNames, addFiles, removeLayer, renameLayer, setLayerNote, moveLayer, setLayerCutout, setLayerMode,
     error, dismissError, onPlayerError,
     logs, clearLogs,
     renderCode, pasteFromClipboard, history, openHistory,

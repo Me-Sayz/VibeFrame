@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { ACCEPT } from "@/lib/assets";
 import { NOTE_MAX } from "@/lib/prompt";
-import { MAX_FILE_MB, MAX_LAYERS, MAX_TOLERANCE, type AssetLayer, type Cutout } from "@/types/assets";
+import { MAX_FILE_MB, MAX_LAYERS, MAX_TOLERANCE, type AssetLayer, type Cutout, type LayerMode } from "@/types/assets";
 import { btn, field } from "./ui";
 
 interface Props {
@@ -14,6 +14,7 @@ interface Props {
   onNote: (id: string, note: string) => void;
   onMove: (id: string, dir: -1 | 1) => void;
   onCutout: (id: string, cutout: Cutout) => void;
+  onMode: (id: string, mode: LayerMode) => void;
   onUseAi: () => void;
 }
 
@@ -56,7 +57,7 @@ function NameField({ layer, onRename }: { layer: AssetLayer; onRename: (id: stri
 
   return (
     <label className="flex min-w-0 items-center gap-1 text-xs font-bold">
-      <span className="shrink-0 font-mono opacity-70">assets.</span>
+      <span className="shrink-0 font-mono opacity-70">{layer.mode === "reference" ? "nama" : "assets."}</span>
       <input
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
@@ -120,10 +121,11 @@ function CutoutControls({ layer, onCutout }: { layer: AssetLayer; onCutout: (id:
   );
 }
 
-export default function AssetsPanel({ layers, onAdd, onRemove, onRename, onNote, onMove, onCutout, onUseAi }: Props) {
+export default function AssetsPanel({ layers, onAdd, onRemove, onRename, onNote, onMove, onCutout, onMode, onUseAi }: Props) {
   const inputId = useId();
   const [over, setOver] = useState(false);
   const full = layers.length >= MAX_LAYERS;
+  const refCount = layers.filter((l) => l.mode === "reference").length;
 
   const onPick = (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -173,8 +175,8 @@ export default function AssetsPanel({ layers, onAdd, onRemove, onRename, onNote,
 
       {layers.length === 0 ? (
         <p className="text-xs opacity-70">
-          Belum ada layer. Gambar yang kamu unggah dipakai AI lewat nama layernya (misalnya assets.coin), diproses di
-          browser tanpa dikirim ke server.
+          Belum ada layer. Gambar yang kamu unggah bisa dipakai apa adanya lewat nama layernya (misalnya assets.coin),
+          atau hanya jadi Referensi (AI menggambar ulang dengan Canvas). Semua diproses di browser tanpa dikirim ke server.
         </p>
       ) : (
         <>
@@ -190,7 +192,7 @@ export default function AssetsPanel({ layers, onAdd, onRemove, onRename, onNote,
                   <div className="min-w-0 flex-1 space-y-1">
                     <NameField layer={l} onRename={onRename} />
                     <p className="font-mono text-[10px] opacity-70">
-                      {l.width}×{l.height} px
+                      {l.width}×{l.height} px{l.mode === "reference" ? " · Referensi" : ""}
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-col gap-1">
@@ -223,16 +225,41 @@ export default function AssetsPanel({ layers, onAdd, onRemove, onRename, onNote,
                   value={l.note}
                   maxLength={NOTE_MAX}
                   onChange={(e) => onNote(l.id, e.target.value)}
-                  placeholder="Catatan untuk AI (opsional), mis. latar belakang"
+                  placeholder={
+                    l.mode === "reference"
+                      ? "Catatan untuk AI (opsional), mis. tiru warnanya"
+                      : "Catatan untuk AI (opsional), mis. latar belakang"
+                  }
                   aria-label={`Catatan ${l.name}`}
                   className={`${field} !px-2 !py-1 !text-xs`}
                 />
-                <CutoutControls layer={l} onCutout={onCutout} />
+                <div role="group" aria-label={`Mode ${l.name}`} className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => onMode(l.id, "image")}
+                    aria-pressed={l.mode === "image"}
+                    className={`${l.mode === "image" ? btn.smallSun : btn.small} !px-2 !py-1`}
+                  >
+                    🖼️ Gambar
+                  </button>
+                  <button
+                    onClick={() => onMode(l.id, "reference")}
+                    aria-pressed={l.mode === "reference"}
+                    className={`${l.mode === "reference" ? btn.smallSun : btn.small} !px-2 !py-1`}
+                  >
+                    👁️ Referensi
+                  </button>
+                  <span className="min-w-0 flex-1 text-[10px] opacity-70">
+                    {l.mode === "reference"
+                      ? "Hanya acuan. Lampirkan gambar ini sendiri di chat AI saat menempel prompt."
+                      : "Digambar apa adanya lewat assets." + l.name}
+                  </span>
+                </div>
+                {l.mode === "image" && <CutoutControls layer={l} onCutout={onCutout} />}
               </li>
             ))}
           </ul>
           <button onClick={onUseAi} className={`${btn.medium} w-full`}>
-            ✨ Gunakan AI ({layers.length} layer)
+            ✨ Gunakan AI ({layers.length} layer{refCount > 0 ? `, ${refCount} referensi` : ""})
           </button>
         </>
       )}

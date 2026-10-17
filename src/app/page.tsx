@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import CodeHub from "@/components/CodeHub";
 import ConfigTabs from "@/components/ConfigTabs";
 import FloatingPanel from "@/components/FloatingPanel";
@@ -26,7 +26,7 @@ export default function Home() {
   const license = useLicense();
   const [licenseOpen, setLicenseOpen] = useState(false);
   const [licenseNotice, setLicenseNotice] = useState<string | null>(null);
-  const layerNames = useMemo(() => studio.layers.map((l) => l.name), [studio.layers]);
+  const layerNames = studio.layerNames;
 
   const fixWithAi = async (instruction: string): Promise<boolean> => {
     if (!license.active) {
@@ -134,6 +134,7 @@ export default function Home() {
             onLayerNote={studio.setLayerNote}
             onMoveLayer={studio.moveLayer}
             onLayerCutout={studio.setLayerCutout}
+            onLayerMode={studio.setLayerMode}
             onUseAi={() => {
               setPromptWithLayers(true);
               setPromptOpen(true);

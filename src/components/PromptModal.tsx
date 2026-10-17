@@ -2,7 +2,7 @@
 
 import { useId, type KeyboardEvent } from "react";
 import { usePersistentState } from "@/hooks/usePersistentState";
-import type { PromptLayer } from "@/lib/prompt";
+import { isReference, type PromptLayer } from "@/lib/prompt";
 import type { Ratio } from "@/types";
 import DirectPrompt from "./DirectPrompt";
 import Modal from "./Modal";
@@ -35,6 +35,7 @@ export default function PromptModal({ duration, ratio, onDuration, onRatio, laye
   const base = useId();
   const [tab, setTab] = usePersistentState<TabId>("prompt:tab", "template", isTab);
   const active = TABS.find((t) => t.id === tab) ?? TABS[0];
+  const refCount = layers.filter(isReference).length;
 
   const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
     let next = index;
@@ -72,7 +73,14 @@ export default function PromptModal({ duration, ratio, onDuration, onRatio, laye
       <p className="mb-4 text-xs opacity-70">{active.hint}</p>
       {layers.length > 0 && (
         <div className="mb-4 flex items-center justify-between gap-2 rounded-lg border-[3px] border-ink bg-lime p-2 text-xs font-bold text-black">
-          <p>{layers.length} layer gambar ikut masuk ke prompt.</p>
+          <p>
+            {layers.length - refCount > 0 && <span className="block">{layers.length - refCount} layer gambar ikut masuk ke prompt.</span>}
+            {refCount > 0 && (
+              <span className="block">
+                {refCount} gambar referensi: lampirkan sendiri di chat AI saat menempel prompt. Buat Animasi (AI) di sini tidak melihatnya.
+              </span>
+            )}
+          </p>
           {onDropLayers && (
             <button
               onClick={onDropLayers}

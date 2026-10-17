@@ -4,6 +4,8 @@ export const MAX_SIDE = 4096;
 export const DEFAULT_TOLERANCE = 20;
 export const MAX_TOLERANCE = 100;
 
+export type LayerMode = "image" | "reference";
+
 export interface Cutout {
   on: boolean;
   tolerance: number;
@@ -18,4 +20,5 @@ export interface AssetLayer {
   bitmap: ImageBitmap;
   source: ImageBitmap;
   cutout: Cutout;
+  mode: LayerMode;
 }

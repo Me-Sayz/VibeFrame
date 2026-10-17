@@ -63,7 +63,11 @@ export interface PromptLayer {
   note: string;
   width: number;
   height: number;
+  mode?: "image" | "reference";
 }
+
+export const isReference = (l: PromptLayer) => l.mode === "reference";
+export const hasReference = (layers?: PromptLayer[]) => (layers ?? []).some(isReference);
 
 export function cleanNote(note: string): string {
   return note.replace(/\s+/g, " ").replace(/[[\]]/g, "").trim().slice(0, NOTE_MAX);
@@ -88,6 +92,22 @@ function layersSection(layers: PromptLayer[]): string[] {
     "· Pertahankan rasio asli tiap layer saat menggambar, jangan dipanjangkan atau dipipihkan.",
     "· Gerakkan tiap layer secara terpisah (posisi, skala, rotasi, transparansi) sesuai animasi. Semua gerakan dihitung dari parameter time.",
     "· Gunakan semua layer yang disediakan dan gambar sesuai urutan dari belakang ke depan.",
+  ];
+}
+
+function referenceSection(layers: PromptLayer[]): string[] {
+  const lines = layers.map((l, i) => {
+    const note = cleanNote(l.note);
+    return `· Gambar ${i + 1} — ${l.name}: ${l.width}×${l.height} px, ${orientation(l.width, l.height)}${note ? ` — ${note}` : ""}`;
+  });
+  return [
+    "GAMBAR REFERENSI (dilampirkan terpisah bersama prompt ini, bukan layer):",
+    ...lines,
+    "Cara memakai gambar referensi:",
+    "· Gambar ini hanya acuan visual. Lihat bentuk, warna, komposisi, dan gayanya.",
+    "· Gambar ulang sendiri dengan Canvas API (path, bentuk, gradasi). Jangan memuat gambar itu lewat new Image, fetch, URL, atau assets.",
+    "· Tiru bentuk utama dan palet warnanya sedekat mungkin, lalu sederhanakan menjadi bentuk vektor yang bersih.",
+    "· Jangan menyalin teks, logo, atau merek yang tampak di gambar referensi.",
   ];
 }
 
@@ -121,15 +141,19 @@ interface RuleOptions {
   duration: number;
   loop: boolean;
   brand: boolean;
+  reference: boolean;
 }
 
-function rulesSection({ layers = [], duration, loop, brand }: RuleOptions): string[] {
+function rulesSection({ layers: all = [], duration, loop, brand, reference }: RuleOptions): string[] {
+  const layers = all.filter((l) => !isReference(l));
+  const refs = reference ? all.filter(isReference) : [];
   const has = layers.length > 0;
   const visual = swap(VISUAL_RULES, NO_BRAND, brand ? BRAND_OK : has ? NO_BRAND_LAYERS : NO_BRAND);
   const before = has ? swap(CODE_RULES_BEFORE_SIGNATURE, CODE_EXTERNAL, CODE_EXTERNAL_LAYERS) : CODE_RULES_BEFORE_SIGNATURE;
   const after = has ? swap(CODE_RULES_AFTER_SIGNATURE, BACKGROUND, BACKGROUND_LAYERS) : CODE_RULES_AFTER_SIGNATURE;
   return [
     ...(has ? [...layersSection(layers), ""] : []),
+    ...(refs.length > 0 ? [...referenceSection(refs), ""] : []),
     "ATURAN VISUAL:",
     ...bullets(visual),
     "",
@@ -174,6 +198,7 @@ export interface PromptInput extends PromptSettings {
   loop?: boolean;
   brand?: boolean;
   template?: PromptTemplate;
+  withReference?: boolean;
 }
 
 export interface PromptTemplate {
@@ -209,7 +234,7 @@ export function buildPrompt(p: PromptInput): string {
     `[${p.concept}]`,
     "",
     ...visualNotes(p.style, p.concept, p.template),
-    ...rulesSection({ layers: p.layers, duration: p.duration, loop: p.loop ?? true, brand: p.brand ?? false }),
+    ...rulesSection({ layers: p.layers, duration: p.duration, loop: p.loop ?? true, brand: p.brand ?? false, reference: p.withReference ?? true }),
   ].join("\n");
 }
 
@@ -223,6 +248,7 @@ export interface DirectInput {
   style?: Style | "";
   concept?: Concept | "";
   template?: PromptTemplate;
+  withReference?: boolean;
 }
 
 export function buildDirectPrompt(p: DirectInput): string {
@@ -239,6 +265,6 @@ export function buildDirectPrompt(p: DirectInput): string {
     ...(p.concept ? ["KONSEP VISUAL:", `[${p.concept}]`] : []),
     "",
     ...visualNotes(p.style, p.concept, p.template),
-    ...rulesSection({ layers: p.layers, duration: p.duration, loop: p.loop ?? true, brand: p.brand ?? false }),
+    ...rulesSection({ layers: p.layers, duration: p.duration, loop: p.loop ?? true, brand: p.brand ?? false, reference: p.withReference ?? true }),
   ].join("\n");
 }
