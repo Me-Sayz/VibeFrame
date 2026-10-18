@@ -1,3 +1,4 @@
+import type { RefImage } from "@/lib/images";
 import type { MagicSettings } from "@/lib/magic";
 import type { Site } from "@/lib/metadata";
 import { CONCEPTS, RATIO_KEYS, STYLES, type Ratio } from "@/types";
@@ -37,9 +38,10 @@ async function post(path: string, body: unknown, signal: AbortSignal, license: s
 export function requestAnimation(
   prompt: string,
   signal: AbortSignal,
-  license: string
+  license: string,
+  images: RefImage[] = []
 ): Promise<{ text: string; model: string }> {
-  return post("/api/generate", { prompt }, signal, license);
+  return post("/api/generate", images.length > 0 ? { prompt, images } : { prompt }, signal, license);
 }
 
 export interface FixRequest {

@@ -5,6 +5,7 @@ import { loadLayer, sanitizeName, uniqueName, withCutout } from "@/lib/assets";
 import { LicenseError, requestAnimation, requestFix } from "@/lib/ai";
 import { renderCover } from "@/lib/cover";
 import { lintCode } from "@/lib/lint";
+import { encodeReferences } from "@/lib/refEncode";
 import { DEFAULT_PRESET, VIDEO_FORMATS, renderParams, type PresetId, type VideoFormat } from "@/lib/presets";
 import { isAbort, renderVideo } from "@/lib/render";
 import { extractCode, usedLayers, validateCode } from "@/lib/validate";
@@ -278,7 +279,7 @@ export function useStudio() {
   const cancelRender = useCallback(() => abortRef.current?.abort(), []);
 
   const generate = useCallback(
-    async (prompt: string, license: string): Promise<GenerateOutcome> => {
+    async (prompt: string, license: string, references: AssetLayer[] = []): Promise<GenerateOutcome> => {
       if (aiAbortRef.current) return { status: "failed" };
       const controller = new AbortController();
       aiAbortRef.current = controller;
@@ -286,7 +287,9 @@ export function useStudio() {
       setError(null);
       log("info", `Buat Animasi (AI): ${ratio}, ${duration} detik`);
       try {
-        const { text, model } = await requestAnimation(prompt, controller.signal, license);
+        const images = references.length > 0 ? await encodeReferences(references) : [];
+        if (images.length > 0) log("info", `Mengirim ${images.length} gambar referensi (diperkecil) ke AI`);
+        const { text, model } = await requestAnimation(prompt, controller.signal, license, images);
         if (model) log("info", `Model AI: ${model}`);
         const clean = extractCode(text);
         setCode(clean);

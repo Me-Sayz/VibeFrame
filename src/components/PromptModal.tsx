@@ -2,7 +2,7 @@
 
 import { useId, type KeyboardEvent } from "react";
 import { usePersistentState } from "@/hooks/usePersistentState";
-import { isReference, type PromptLayer } from "@/lib/prompt";
+import { MAX_AI_REFS, isReference, type PromptLayer } from "@/lib/prompt";
 import type { Ratio } from "@/types";
 import DirectPrompt from "./DirectPrompt";
 import Modal from "./Modal";
@@ -77,7 +77,9 @@ export default function PromptModal({ duration, ratio, onDuration, onRatio, laye
             {layers.length - refCount > 0 && <span className="block">{layers.length - refCount} layer gambar ikut masuk ke prompt.</span>}
             {refCount > 0 && (
               <span className="block">
-                {refCount} gambar referensi: lampirkan sendiri di chat AI saat menempel prompt. Buat Animasi (AI) di sini tidak melihatnya.
+                {refCount} gambar referensi: Buat Animasi (AI) ikut melihatnya
+                {refCount > MAX_AI_REFS ? ` (hanya ${MAX_AI_REFS} pertama)` : ""}. Gambar diperkecil lalu dikirim lewat server ke Google
+                Gemini. Untuk Salin prompt, lampirkan sendiri di chat AI.
               </span>
             )}
           </p>

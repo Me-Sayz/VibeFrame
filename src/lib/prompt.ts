@@ -69,6 +69,15 @@ export interface PromptLayer {
 export const isReference = (l: PromptLayer) => l.mode === "reference";
 export const hasReference = (layers?: PromptLayer[]) => (layers ?? []).some(isReference);
 
+export const MAX_AI_REFS = 3;
+
+export function capReferences<T extends PromptLayer>(layers: T[]): T[] {
+  let seen = 0;
+  return layers.filter((l) => !isReference(l) || ++seen <= MAX_AI_REFS);
+}
+
+export const aiReferences = <T extends PromptLayer>(layers: T[]): T[] => layers.filter(isReference).slice(0, MAX_AI_REFS);
+
 export function cleanNote(note: string): string {
   return note.replace(/\s+/g, " ").replace(/[[\]]/g, "").trim().slice(0, NOTE_MAX);
 }

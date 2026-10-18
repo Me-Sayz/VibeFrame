@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { THEME_CATEGORIES, searchThemes } from "@/data/themes";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { findTemplate } from "@/data/templates";
-import { THEME_MAX, buildPrompt, hasReference, isThemeValid, type PromptLayer } from "@/lib/prompt";
+import { THEME_MAX, buildPrompt, capReferences, isThemeValid, type PromptLayer } from "@/lib/prompt";
 import { CONCEPTS, RATIO_KEYS, SCENE_OPTIONS, STYLES, type Concept, type Ratio, type Style } from "@/types";
 import BrandToggle from "./BrandToggle";
 import LoopToggle from "./LoopToggle";
@@ -55,13 +55,14 @@ export default function PromptBuilder({ duration, ratio, onDuration, onRatio, la
     () => (valid ? buildPrompt({ theme, scenes, style, concept, duration, ratio, layers, loop, brand, template }) : ""),
     [valid, theme, scenes, style, concept, duration, ratio, layers, loop, brand, template]
   );
-  const refs = hasReference(layers);
+  const aiLayers = useMemo(() => capReferences(layers ?? []), [layers]);
+  const capped = aiLayers.length < (layers?.length ?? 0);
   const generatePrompt = useMemo(
     () =>
-      valid && refs
-        ? buildPrompt({ theme, scenes, style, concept, duration, ratio, layers, loop, brand, template, withReference: false })
+      valid && capped
+        ? buildPrompt({ theme, scenes, style, concept, duration, ratio, layers: aiLayers, loop, brand, template })
         : prompt,
-    [valid, refs, prompt, theme, scenes, style, concept, duration, ratio, layers, loop, brand, template]
+    [valid, capped, prompt, theme, scenes, style, concept, duration, ratio, aiLayers, loop, brand, template]
   );
 
   const copy = async () => {

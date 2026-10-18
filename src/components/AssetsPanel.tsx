@@ -250,7 +250,7 @@ export default function AssetsPanel({ layers, onAdd, onRemove, onRename, onNote,
                   </button>
                   <span className="min-w-0 flex-1 text-[10px] opacity-70">
                     {l.mode === "reference"
-                      ? "Hanya acuan. Lampirkan gambar ini sendiri di chat AI saat menempel prompt."
+                      ? "Hanya acuan. Buat Animasi (AI) ikut melihatnya (maks 3 pertama). Untuk chat AI lain, lampirkan sendiri."
                       : "Digambar apa adanya lewat assets." + l.name}
                   </span>
                 </div>

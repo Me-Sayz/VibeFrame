@@ -5,7 +5,7 @@ import { findTemplate } from "@/data/templates";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { LicenseError, refineIdea, requestMagic } from "@/lib/ai";
 import { MAGIC_MIN } from "@/lib/magic";
-import { IDEA_MAX, REFINE_MAX, buildDirectPrompt, hasReference, isIdeaValid, type PromptLayer } from "@/lib/prompt";
+import { IDEA_MAX, REFINE_MAX, buildDirectPrompt, capReferences, isIdeaValid, type PromptLayer } from "@/lib/prompt";
 import { isAbort } from "@/lib/render";
 import { CONCEPTS, RATIO_KEYS, STYLES, type Concept, type Ratio, type Style } from "@/types";
 import BrandToggle from "./BrandToggle";
@@ -83,13 +83,14 @@ export default function DirectPrompt({
     () => (valid ? buildDirectPrompt({ idea, duration, ratio, layers, loop, brand, style, concept, template }) : ""),
     [valid, idea, duration, ratio, layers, loop, brand, style, concept, template]
   );
-  const refs = hasReference(layers);
+  const aiLayers = useMemo(() => capReferences(layers ?? []), [layers]);
+  const capped = aiLayers.length < (layers?.length ?? 0);
   const generatePrompt = useMemo(
     () =>
-      valid && refs
-        ? buildDirectPrompt({ idea, duration, ratio, layers, loop, brand, style, concept, template, withReference: false })
+      valid && capped
+        ? buildDirectPrompt({ idea, duration, ratio, layers: aiLayers, loop, brand, style, concept, template })
         : prompt,
-    [valid, refs, prompt, idea, duration, ratio, layers, loop, brand, style, concept, template]
+    [valid, capped, prompt, idea, duration, ratio, aiLayers, loop, brand, style, concept, template]
   );
 
   const trimmedLength = idea.trim().length;

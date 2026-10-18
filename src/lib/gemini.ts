@@ -7,6 +7,7 @@ let rotation = 0;
 interface GeminiPart {
   text?: string;
   thought?: boolean;
+  inlineData?: { mimeType: string; data: string };
 }
 
 interface GeminiResponse {
@@ -21,6 +22,7 @@ export interface GeminiOptions {
   timeoutMs: number;
   signal?: AbortSignal;
   accept?: (text: string) => boolean;
+  images?: { mime: string; data: string }[];
 }
 
 export type GeminiResult = { ok: true; text: string; model: string } | { ok: false; error: string; status: number };
@@ -70,7 +72,15 @@ async function ask(model: string, key: string, prompt: string, o: GeminiOptions)
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        contents: [
+          {
+            role: "user",
+            parts: [
+              ...(o.images ?? []).map((im): GeminiPart => ({ inlineData: { mimeType: im.mime, data: im.data } })),
+              { text: prompt },
+            ],
+          },
+        ],
         generationConfig: { temperature: o.temperature, maxOutputTokens: o.maxOutputTokens },
       }),
       signal: o.signal ? AbortSignal.any([timeout, o.signal]) : timeout,

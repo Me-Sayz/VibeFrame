@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { acquire, release } from "@/lib/aiLock";
 import { generateText, geminiKeys, geminiModels } from "@/lib/gemini";
 import { reply, sameOrigin } from "@/lib/http";
+import { parseImages } from "@/lib/images";
 import { licenseMessage, verifyLicense } from "@/lib/license";
 import { isLimited } from "@/lib/rateLimit";
 
@@ -30,13 +31,18 @@ export async function POST(req: Request) {
   }
 
   let prompt: unknown;
+  let rawImages: unknown;
   try {
-    prompt = ((await req.json()) as { prompt?: unknown }).prompt;
+    const body = (await req.json()) as { prompt?: unknown; images?: unknown };
+    prompt = body.prompt;
+    rawImages = body.images;
   } catch {
     return reply("Isi permintaan tidak valid.", 400);
   }
   if (typeof prompt !== "string" || prompt.trim().length < 20) return reply("Prompt kosong atau terlalu pendek.", 400);
   if (prompt.length > MAX_PROMPT) return reply(`Prompt terlalu panjang (maksimal ${MAX_PROMPT} karakter).`, 400);
+  const images = parseImages(rawImages);
+  if (typeof images === "string") return reply(images, 400);
 
   const owner = auth.code;
   if (!acquire(owner)) {
@@ -51,6 +57,7 @@ export async function POST(req: Request) {
       temperature: 0.7,
       timeoutMs: 90_000,
       signal: req.signal,
+      images,
     });
     if (!result.ok) return reply(result.error, result.status);
     return NextResponse.json({ text: result.text, model: result.model });

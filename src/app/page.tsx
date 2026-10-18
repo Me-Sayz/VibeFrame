@@ -14,6 +14,7 @@ import { useLicense } from "@/hooks/useLicense";
 import { usePlayer } from "@/hooks/usePlayer";
 import { useStudio } from "@/hooks/useStudio";
 import { VIDEO_FORMATS, renderParams } from "@/lib/presets";
+import { aiReferences } from "@/lib/prompt";
 
 export default function Home() {
   const studio = useStudio();
@@ -236,7 +237,11 @@ export default function Home() {
               setLicenseOpen(true);
               return;
             }
-            const outcome = await studio.generate(prompt, license.code);
+            const outcome = await studio.generate(
+              prompt,
+              license.code,
+              promptWithLayers ? aiReferences(studio.layers) : []
+            );
             if (outcome.status === "rejected") setTerminalOpen(true);
             if (outcome.status === "license") {
               license.refresh();
