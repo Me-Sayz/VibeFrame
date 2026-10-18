@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import CodeHub from "@/components/CodeHub";
 import ConfigTabs from "@/components/ConfigTabs";
@@ -92,6 +93,9 @@ export default function Home() {
           >
             🏷️ Microstock
           </button>
+          <Link href="/vector" className={`${btn.small} !px-4 !py-2 !text-sm`}>
+            🎨 Vector
+          </Link>
           <button
             onClick={() => setLicenseOpen(true)}
             aria-haspopup="dialog"

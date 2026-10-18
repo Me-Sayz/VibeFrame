@@ -44,6 +44,15 @@ export function requestAnimation(
   return post("/api/generate", images.length > 0 ? { prompt, images } : { prompt }, signal, license);
 }
 
+export function requestVector(
+  prompt: string,
+  signal: AbortSignal,
+  license: string,
+  images: RefImage[] = []
+): Promise<{ text: string; model: string }> {
+  return post("/api/vector", images.length > 0 ? { prompt, images } : { prompt }, signal, license);
+}
+
 export interface FixRequest {
   code: string;
   instruction: string;
