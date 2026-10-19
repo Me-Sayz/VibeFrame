@@ -66,6 +66,7 @@ export default function VectorColors({ svg, onChange, onHover }: Props) {
   if (parts.length === 0) {
     return <p className="text-xs opacity-70">Belum ada bentuk yang bisa diubah warnanya.</p>;
   }
+  const hasOther = parts.some((p) => p.fill.kind === "other" || p.stroke.kind === "other");
 
   return (
     <div className="space-y-3">
@@ -146,6 +147,11 @@ export default function VectorColors({ svg, onChange, onHover }: Props) {
               </li>
             ))}
       </ul>
+      {hasOther && (
+        <p className="text-xs opacity-70">
+          Warna gradasi tidak bisa diubah di sini. Ubah lewat kode di Terminal, atau minta AI membuat versi warna rata.
+        </p>
+      )}
     </div>
   );
 }

@@ -61,6 +61,7 @@ export function sanitizeSvg(text: string): SvgResult {
   const removed = new Set<string>();
   const fixed: string[] = [];
   const walk = (el: Element) => {
+    for (const node of Array.from(el.childNodes)) if (node.nodeType === 8) node.remove();
     for (const child of Array.from(el.children)) {
       if (!ALLOWED.has(child.localName)) {
         removed.add(child.localName);
