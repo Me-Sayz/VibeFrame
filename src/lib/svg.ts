@@ -224,7 +224,24 @@ export function viewBoxSize(svg: string): { width: number; height: number } {
   return width > 0 && height > 0 ? { width, height } : { width: 1000, height: 1000 };
 }
 
-export const toDataUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+export function withBackground(svg: string, color: string): string {
+  const doc = parse(svg);
+  if (!doc) return svg;
+  const root = doc.documentElement;
+  const n = (root.getAttribute("viewBox") ?? "").trim().split(/[\s,]+/).map(Number);
+  const [x, y, w, h] = n.length === 4 && n.every(Number.isFinite) ? n : [0, 0, 1000, 1000];
+  const rect = doc.createElementNS(SVG_NS, "rect");
+  rect.setAttribute("id", "latar");
+  rect.setAttribute("x", String(x));
+  rect.setAttribute("y", String(y));
+  rect.setAttribute("width", String(w));
+  rect.setAttribute("height", String(h));
+  rect.setAttribute("fill", color);
+  root.insertBefore(rect, root.firstChild);
+  return serialize(doc);
+}
+
+export const toDataUrl =(svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 
 export async function rasterize(svg: string, width: number): Promise<Blob> {
   const size = viewBoxSize(svg);

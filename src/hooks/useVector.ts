@@ -6,7 +6,7 @@ import { loadLayer } from "@/lib/assets";
 import { MAX_AI_REFS } from "@/lib/prompt";
 import { encodeReferences } from "@/lib/refEncode";
 import { isAbort } from "@/lib/render";
-import { rasterize, sanitizeSvg } from "@/lib/svg";
+import { rasterize, sanitizeSvg, withBackground } from "@/lib/svg";
 import type { LogEntry, LogLevel } from "@/types";
 import type { AssetLayer } from "@/types/assets";
 import { usePersistentState } from "./usePersistentState";
@@ -189,19 +189,23 @@ export function useVector() {
 
   const cancelGenerate = useCallback(() => abortRef.current?.abort(), []);
 
-  const downloadSvg = useCallback(() => {
-    if (!svg) return;
-    saveBlob(new Blob([svg], { type: "image/svg+xml" }), `vector-${Date.now()}.svg`);
-    log("info", "SVG diunduh");
-  }, [svg, log]);
+  const downloadSvg = useCallback(
+    (bg: string | null = null) => {
+      if (!svg) return;
+      const out = bg ? withBackground(svg, bg) : svg;
+      saveBlob(new Blob([out], { type: "image/svg+xml" }), `vector-${Date.now()}.svg`);
+      log("info", `SVG diunduh${bg ? ` dengan latar ${bg}` : ""}`);
+    },
+    [svg, log]
+  );
 
   const downloadPng = useCallback(
-    async (width: number) => {
+    async (width: number, bg: string | null = null) => {
       if (!svg) return;
       try {
-        const blob = await rasterize(svg, width);
+        const blob = await rasterize(bg ? withBackground(svg, bg) : svg, width);
         saveBlob(blob, `vector-${width}px-${Date.now()}.png`);
-        log("info", `PNG ${width}px diunduh (${(blob.size / 1048576).toFixed(1)} MB)`);
+        log("info", `PNG ${width}px diunduh${bg ? ` dengan latar ${bg}` : ""} (${(blob.size / 1048576).toFixed(1)} MB)`);
       } catch (e) {
         fail(`PNG gagal: ${e instanceof Error ? e.message : String(e)}`);
       }

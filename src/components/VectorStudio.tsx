@@ -27,6 +27,9 @@ export default function VectorStudio() {
   const [hover, setHover] = useState<number[] | null>(null);
   const [previewBg, setPreviewBg] = usePersistentState<PreviewBg>("vector:previewbg", "checker", oneOf(PREVIEW_BG_IDS));
   const [pngWidth, setPngWidth] = usePersistentState("vector:pngwidth", 2048, isPngWidth);
+  const [withBg, setWithBg] = usePersistentState("vector:withbg", false, (x) => typeof x === "boolean");
+  const bgColor = PREVIEW_BGS[previewBg].color;
+  const exportBg = withBg ? bgColor : null;
 
   const size = useMemo(() => (v.svg ? viewBoxSize(v.svg) : { width: 1, height: 1 }), [v.svg]);
   const partCount = useMemo(() => (v.svg ? getParts(v.svg).length : 0), [v.svg]);
@@ -170,10 +173,10 @@ export default function VectorStudio() {
                     </option>
                   ))}
                 </select>
-                <button onClick={() => void v.downloadPng(pngWidth)} disabled={!v.svg} className={btn.medium}>
+                <button onClick={() => void v.downloadPng(pngWidth, exportBg)} disabled={!v.svg} className={btn.medium}>
                   ⬇ PNG
                 </button>
-                <button onClick={v.downloadSvg} disabled={!v.svg} className={btn.medium}>
+                <button onClick={() => v.downloadSvg(exportBg)} disabled={!v.svg} className={btn.medium}>
                   ⬇ SVG
                 </button>
                 <button
@@ -189,6 +192,14 @@ export default function VectorStudio() {
                 </button>
               </div>
             </div>
+            {bgColor ? (
+              <label className="flex items-center gap-2 text-xs font-bold">
+                <input type="checkbox" checked={withBg} onChange={(e) => setWithBg(e.target.checked)} className="h-4 w-4" />
+                Unduh dengan latar {PREVIEW_BGS[previewBg].label} ({bgColor})
+              </label>
+            ) : (
+              <p className="text-xs opacity-70">Unduhan transparan (tanpa latar). Pilih latar lain di Config untuk mengunduh dengan latar.</p>
+            )}
           </div>
         </section>
       </div>
