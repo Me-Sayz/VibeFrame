@@ -79,19 +79,27 @@ export default function VectorColors({ svg, onChange, onHover, selected, onSelec
 
   return (
     <div className="space-y-3">
-      <span className={sectionTitle}>🎨 Warna per bagian</span>
+      <div>
+        <span className={sectionTitle}>🎨 Warna per bagian</span>
+      </div>
 
       <button
         onClick={() => setListOpen(!open)}
         aria-expanded={open}
-        className="text-xs font-bold underline"
+        className="flex w-full items-center justify-between gap-2 rounded-lg border-[3px] border-ink bg-card px-3 py-2 text-xs font-bold text-ink shadow-brut-sm transition hover:bg-lime hover:text-black"
       >
-        {open ? "Sembunyikan daftar bagian ▴" : `Semua bagian (${parts.length}) ▾`}
+        <span className="flex items-center gap-2">
+          Daftar semua bagian
+          <span className="rounded-md border-2 border-ink bg-sun px-1.5 py-0.5 font-mono text-[10px] text-black">{parts.length}</span>
+        </span>
+        <span aria-hidden="true" className="text-sm leading-none">
+          {open ? "▴" : "▾"}
+        </span>
       </button>
 
       {open && (
         <>
-          <div className="flex gap-1.5" role="group" aria-label="Cara mengelompokkan">
+          <div className="grid grid-cols-2 gap-1.5" role="group" aria-label="Cara mengelompokkan">
             <button
               onClick={() => setForced("shape")}
               aria-pressed={mode === "shape"}
