@@ -4,11 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { findTemplate } from "@/data/templates";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { LicenseError, refineIdea, requestMagic } from "@/lib/ai";
+import type { IdeaHints } from "@/lib/ideas";
 import { MAGIC_MIN } from "@/lib/magic";
 import { IDEA_MAX, REFINE_MAX, buildDirectPrompt, capReferences, isIdeaValid, type PromptLayer } from "@/lib/prompt";
 import { isAbort } from "@/lib/render";
 import { CONCEPTS, RATIO_KEYS, STYLES, type Concept, type Ratio, type Style } from "@/types";
 import BrandToggle from "./BrandToggle";
+import IdeasFlow from "./IdeasFlow";
 import LoopToggle from "./LoopToggle";
 import VisualPickers from "./VisualPickers";
 import { btn, field, mono } from "./ui";
@@ -58,6 +60,7 @@ export default function DirectPrompt({
   const [style, setStyle] = usePersistentState<Style | "">("prompt:dstyle", "", oneOfOrEmpty(STYLES));
   const [concept, setConcept] = usePersistentState<Concept | "">("prompt:dconcept", "", oneOfOrEmpty(CONCEPTS));
   const [copyState, setCopyState] = useState<CopyState>("idle");
+  const [ideasOpen, setIdeasOpen] = useState(false);
   const [refining, setRefining] = useState(false);
   const [previous, setPrevious] = useState<string | null>(null);
   const [refineNote, setRefineNote] = useState<{ ok: boolean; text: string } | null>(null);
@@ -180,6 +183,30 @@ export default function DirectPrompt({
     forgetMagic();
   };
 
+  const useIdea = (text: string, hints: IdeaHints | null) => {
+    setIdea(text.slice(0, IDEA_MAX));
+    setPrevious(null);
+    setRefineNote(null);
+    forgetMagic();
+    if (hints?.style && (STYLES as readonly string[]).includes(hints.style)) setStyle(hints.style as Style);
+    if (hints?.concept && (CONCEPTS as readonly string[]).includes(hints.concept)) setConcept(hints.concept as Concept);
+    setIdeasOpen(false);
+  };
+
+  if (ideasOpen) {
+    return (
+      <IdeasFlow
+        kind="video"
+        initialTopic={idea}
+        locked={!!locked}
+        licenseCode={licenseCode}
+        onNeedLicense={(m) => onNeedLicense?.(m)}
+        onUse={useIdea}
+        onBack={() => setIdeasOpen(false)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       <label className="block">
@@ -205,6 +232,9 @@ export default function DirectPrompt({
           aria-label="Deskripsi video"
         />
       </label>
+      <button onClick={() => setIdeasOpen(true)} disabled={refining || magicking || busy} className={btn.smallSun}>
+        💡 Belum ada ide? Cari ide
+      </button>
       <p className="text-xs opacity-70">
         Tulis seperti memberi brief ke desainer: objek, gerakan, warna, dan latar. Aturan visual, motion, dan kode ditambahkan otomatis.
       </p>

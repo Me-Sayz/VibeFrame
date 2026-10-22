@@ -1,4 +1,5 @@
 import type { RefImage } from "@/lib/images";
+import type { Idea, IdeaKind } from "@/lib/ideas";
 import type { MagicSettings } from "@/lib/magic";
 import type { Site } from "@/lib/metadata";
 import { CONCEPTS, RATIO_KEYS, STYLES, type Ratio } from "@/types";
@@ -126,4 +127,25 @@ export async function requestMagic(idea: string, signal: AbortSignal, license: s
     reason: d.reason,
     model: typeof d.model === "string" ? d.model : "",
   };
+}
+
+export async function requestIdeas(
+  kind: IdeaKind,
+  topic: string,
+  signal: AbortSignal,
+  license: string
+): Promise<{ ideas: Idea[]; model: string }> {
+  const d = await call("/api/ideas", { kind, topic }, signal, license);
+  if (!Array.isArray(d.ideas) || d.ideas.length === 0) throw new Error("Balasan AI kosong atau tidak sesuai format.");
+  return { ideas: d.ideas as Idea[], model: typeof d.model === "string" ? d.model : "" };
+}
+
+export function requestCompose(
+  kind: IdeaKind,
+  topic: string,
+  picked: Idea[],
+  signal: AbortSignal,
+  license: string
+): Promise<{ text: string; model: string }> {
+  return post("/api/ideas", { kind, topic, picked }, signal, license);
 }

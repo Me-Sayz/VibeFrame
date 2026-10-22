@@ -20,6 +20,8 @@ import {
   type VectorStyle,
 } from "@/lib/svgPrompt";
 import type { AssetLayer } from "@/types/assets";
+import type { IdeaHints } from "@/lib/ideas";
+import IdeasFlow from "./IdeasFlow";
 import Modal from "./Modal";
 import { btn, field, mono } from "./ui";
 
@@ -27,6 +29,8 @@ interface Props {
   refs: AssetLayer[];
   generating: boolean;
   locked: boolean;
+  licenseCode: string;
+  onNeedLicense: (message: string) => void;
   onGenerate: (prompt: string) => void;
   onClose: () => void;
 }
@@ -38,7 +42,7 @@ const isBool = (v: unknown) => typeof v === "boolean";
 const oneOf = (list: readonly unknown[]) => (v: unknown) => list.includes(v);
 const isColors = (v: unknown) => typeof v === "number" && v >= VECTOR_COLORS_MIN && v <= VECTOR_COLORS_MAX;
 
-export default function VectorPromptModal({ refs, generating, locked, onGenerate, onClose }: Props) {
+export default function VectorPromptModal({ refs, generating, locked, licenseCode, onNeedLicense, onGenerate, onClose }: Props) {
   const [idea, setIdea] = usePersistentState("vector:idea", "", isString);
   const [style, setStyle] = usePersistentState<VectorStyle>("vector:style", "flat", oneOf(VECTOR_STYLES.map((s) => s.id)));
   const [format, setFormat] = usePersistentState<VectorFormat>("vector:format", "square", oneOf(VECTOR_FORMATS.map((f) => f.id)));
@@ -47,6 +51,7 @@ export default function VectorPromptModal({ refs, generating, locked, onGenerate
   const [colors, setColors] = usePersistentState("vector:colors", 6, isColors);
   const [transparent, setTransparent] = usePersistentState("vector:transparent", true, isBool);
   const [copyState, setCopyState] = useState<CopyState>("idle");
+  const [ideasOpen, setIdeasOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => {
@@ -86,6 +91,30 @@ export default function VectorPromptModal({ refs, generating, locked, onGenerate
     timer.current = setTimeout(() => setCopyState("idle"), 2500);
   };
 
+  const useIdea = (text: string, hints: IdeaHints | null) => {
+    setIdea(text.slice(0, VECTOR_IDEA_MAX));
+    if (hints?.style && VECTOR_STYLES.some((x) => x.id === hints.style)) setStyle(hints.style as VectorStyle);
+    if (hints?.palette && VECTOR_PALETTES.some((x) => x.id === hints.palette)) setPalette(hints.palette as VectorPalette);
+    if (hints?.detail && VECTOR_DETAILS.some((x) => x.id === hints.detail)) setDetail(hints.detail as VectorDetail);
+    setIdeasOpen(false);
+  };
+
+  if (ideasOpen) {
+    return (
+      <Modal title="Cari ide · Vector" onClose={onClose} widthClass="max-w-3xl">
+        <IdeasFlow
+          kind="vector"
+          initialTopic={idea}
+          locked={locked}
+          licenseCode={licenseCode}
+          onNeedLicense={onNeedLicense}
+          onUse={useIdea}
+          onBack={() => setIdeasOpen(false)}
+        />
+      </Modal>
+    );
+  }
+
   return (
     <Modal title="Prompt AI · Vector" onClose={onClose} widthClass="max-w-3xl">
       <div className="space-y-4">
@@ -110,6 +139,10 @@ export default function VectorPromptModal({ refs, generating, locked, onGenerate
             Sebut objek, warna, dan suasananya. Minimal {VECTOR_IDEA_MIN} karakter.
           </span>
         </label>
+
+        <button onClick={() => setIdeasOpen(true)} disabled={generating} className={btn.smallSun}>
+          💡 Belum ada ide? Cari ide
+        </button>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block">

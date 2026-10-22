@@ -215,6 +215,11 @@ export default function VectorStudio() {
           refs={v.refs}
           generating={v.busy}
           locked={!license.active}
+          licenseCode={license.code}
+          onNeedLicense={(message) => {
+            setPromptOpen(false);
+            needLicense(message);
+          }}
           onGenerate={(prompt) => void generate(prompt)}
           onClose={() => setPromptOpen(false)}
         />
