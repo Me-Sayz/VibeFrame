@@ -259,3 +259,81 @@ export async function rasterize(svg: string, width: number): Promise<Blob> {
   if (!blob) throw new Error("PNG gagal dibuat.");
   return blob;
 }
+
+export interface HitMap {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+  count: number;
+}
+
+const stripOpacity = (el: Element) => {
+  for (const name of ["opacity", "fill-opacity", "stroke-opacity"]) el.removeAttribute(name);
+  const style = el.getAttribute("style");
+  if (!style) return;
+  const next = style.replace(/(?:^|;)\s*(?:fill-|stroke-)?opacity\s*:[^;]*/gi, "").replace(/^;+/, "").trim();
+  if (next) el.setAttribute("style", next);
+  else el.removeAttribute("style");
+};
+
+export function buildHitSvg(svg: string): { svg: string; count: number } | null {
+  const doc = parse(svg);
+  if (!doc) return null;
+  const root = doc.documentElement;
+  root.setAttribute("shape-rendering", "crispEdges");
+  stripOpacity(root);
+  root.querySelectorAll("*").forEach(stripOpacity);
+  const shapes = shapesOf(doc);
+  shapes.forEach((el, i) => {
+    const hex = `#${(i + 1).toString(16).padStart(6, "0")}`;
+    writePaint(el, "fill", paintOf(el, "fill").kind === "none" ? "none" : hex);
+    writePaint(el, "stroke", paintOf(el, "stroke").kind === "none" ? "none" : hex);
+  });
+  return { svg: serialize(doc), count: shapes.length };
+}
+
+export async function rasterizeHit(svg: string, maxSide = 640): Promise<HitMap | null> {
+  const hit = buildHitSvg(svg);
+  if (!hit || hit.count === 0) return null;
+  const size = viewBoxSize(svg);
+  const scale = maxSide / Math.max(size.width, size.height);
+  const width = Math.max(1, Math.round(size.width * scale));
+  const height = Math.max(1, Math.round(size.height * scale));
+  const img = new Image();
+  img.src = toDataUrl(hit.svg);
+  await img.decode();
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return null;
+  ctx.drawImage(img, 0, 0, width, height);
+  return { width, height, data: ctx.getImageData(0, 0, width, height).data, count: hit.count };
+}
+
+export function hitIndexAt(map: HitMap, nx: number, ny: number): number | null {
+  const x = Math.min(map.width - 1, Math.max(0, Math.floor(nx * map.width)));
+  const y = Math.min(map.height - 1, Math.max(0, Math.floor(ny * map.height)));
+  const o = (y * map.width + x) * 4;
+  if (map.data[o + 3] !== 255) return null;
+  const n = (map.data[o] << 16) | (map.data[o + 1] << 8) | map.data[o + 2];
+  return n >= 1 && n <= map.count ? n - 1 : null;
+}
+
+export function hitBounds(map: HitMap, index: number): { x: number; y: number; w: number; h: number } | null {
+  const id = index + 1;
+  let x0 = map.width, y0 = map.height, x1 = -1, y1 = -1;
+  for (let y = 0; y < map.height; y++) {
+    for (let x = 0; x < map.width; x++) {
+      const o = (y * map.width + x) * 4;
+      if (map.data[o + 3] !== 255) continue;
+      if (((map.data[o] << 16) | (map.data[o + 1] << 8) | map.data[o + 2]) !== id) continue;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+    }
+  }
+  if (x1 < 0) return null;
+  return { x: x0 / map.width, y: y0 / map.height, w: (x1 - x0 + 1) / map.width, h: (y1 - y0 + 1) / map.height };
+}

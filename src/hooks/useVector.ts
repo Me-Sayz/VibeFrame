@@ -13,6 +13,8 @@ import { usePersistentState } from "./usePersistentState";
 import type { GenerateOutcome } from "./useStudio";
 
 const MAX_LOGS = 200;
+const MAX_HISTORY = 60;
+const MERGE_MS = 800;
 const isString = (v: unknown) => typeof v === "string";
 
 function saveBlob(blob: Blob, name: string) {
@@ -34,6 +36,12 @@ export function useVector() {
   const [notice, setNotice] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [dark, setDark] = useState(false);
+  const svgRef = useRef(svg);
+  svgRef.current = svg;
+  const past = useRef<string[]>([]);
+  const future = useRef<string[]>([]);
+  const lastEdit = useRef<{ group: string; time: number } | null>(null);
+  const [depth, setDepth] = useState({ undo: 0, redo: 0 });
   const logId = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -63,6 +71,52 @@ export function useVector() {
     setDark(next);
   }, []);
 
+  const syncDepth = useCallback(() => setDepth({ undo: past.current.length, redo: future.current.length }), []);
+
+  const commit = useCallback(
+    (next: string, group?: string) => {
+      const cur = svgRef.current;
+      if (next === cur) return;
+      const now = Date.now();
+      const last = lastEdit.current;
+      const merge = !!group && !!last && last.group === group && now - last.time < MERGE_MS;
+      if (!merge) past.current = [...past.current, cur].slice(-MAX_HISTORY);
+      lastEdit.current = group ? { group, time: now } : null;
+      future.current = [];
+      svgRef.current = next;
+      setSvg(next);
+      setCode(next);
+      syncDepth();
+    },
+    [setSvg, syncDepth]
+  );
+
+  const undo = useCallback(() => {
+    const prev = past.current.at(-1);
+    if (prev === undefined) return;
+    past.current = past.current.slice(0, -1);
+    future.current = [...future.current, svgRef.current];
+    lastEdit.current = null;
+    svgRef.current = prev;
+    setSvg(prev);
+    setCode(prev);
+    setError(null);
+    syncDepth();
+  }, [setSvg, syncDepth]);
+
+  const redo = useCallback(() => {
+    const next = future.current.at(-1);
+    if (next === undefined) return;
+    future.current = future.current.slice(0, -1);
+    past.current = [...past.current, svgRef.current];
+    lastEdit.current = null;
+    svgRef.current = next;
+    setSvg(next);
+    setCode(next);
+    setError(null);
+    syncDepth();
+  }, [setSvg, syncDepth]);
+
   const apply = useCallback(
     (text: string, prefix = ""): boolean => {
       const r = sanitizeSvg(text);
@@ -71,8 +125,7 @@ export function useVector() {
         fail(r.error);
         return false;
       }
-      setSvg(r.svg);
-      setCode(r.svg);
+      commit(r.svg);
       setError(null);
       const parts = [prefix];
       if (r.removed.length > 0) parts.push(`Elemen dibuang demi keamanan: ${r.removed.join(", ")}.`);
@@ -82,7 +135,7 @@ export function useVector() {
       log("info", `SVG ditampilkan${message ? `. ${message}` : ""}`);
       return true;
     },
-    [fail, log, setSvg]
+    [commit, fail, log]
   );
 
   const showCode = useCallback(() => {
@@ -102,20 +155,16 @@ export function useVector() {
   }, [apply, fail]);
 
   const editSvg = useCallback(
-    (next: string) => {
-      setSvg(next);
-      setCode(next);
-    },
-    [setSvg]
+    (next: string, group?: string) => commit(next, group),
+    [commit]
   );
 
   const clearImage = useCallback(() => {
-    setSvg("");
-    setCode("");
+    commit("");
     setError(null);
     setNotice(null);
     log("info", "Gambar dihapus");
-  }, [log, setSvg]);
+  }, [commit, log]);
 
   const commitRefs = useCallback((next: AssetLayer[]) => {
     refsRef.current = next;
@@ -217,6 +266,7 @@ export function useVector() {
 
   return {
     svg, code, setCode, showCode, pasteFromClipboard, editSvg, clearImage,
+    undo, redo, canUndo: depth.undo > 0, canRedo: depth.redo > 0,
     refs, addRefs, removeRef, setRefNote,
     busy, error, notice, logs, clearLogs,
     generate, cancelGenerate, downloadSvg, downloadPng,

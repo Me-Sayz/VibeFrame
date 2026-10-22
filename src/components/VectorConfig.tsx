@@ -18,7 +18,9 @@ type TabId = (typeof TABS)[number]["id"];
 
 interface Props {
   svg: string;
-  onSvgChange: (svg: string) => void;
+  onSvgChange: (svg: string, group?: string) => void;
+  selected: number | null;
+  onSelect: (index: number | null) => void;
   onHover: (indices: number[] | null) => void;
   previewBg: PreviewBg;
   onPreviewBg: (value: PreviewBg) => void;
@@ -127,7 +129,13 @@ export default function VectorConfig(p: Props) {
             </div>
 
             {p.svg ? (
-              <VectorColors svg={p.svg} onChange={p.onSvgChange} onHover={p.onHover} />
+              <VectorColors
+                svg={p.svg}
+                onChange={p.onSvgChange}
+                onHover={p.onHover}
+                selected={p.selected}
+                onSelect={p.onSelect}
+              />
             ) : (
               <p className="text-xs opacity-70">
                 Belum ada gambar. Buat lewat 📝 Prompt AI, atau tempel kode SVG di 🖥️ Terminal. Setelah itu warna tiap bagian

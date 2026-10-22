@@ -1,17 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useLicense } from "@/hooks/useLicense";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { useVector } from "@/hooks/useVector";
-import { dimOthers, getParts, toDataUrl, viewBoxSize } from "@/lib/svg";
+import { dimOthers, getParts, hitBounds, hitIndexAt, rasterizeHit, toDataUrl, viewBoxSize, type HitMap } from "@/lib/svg";
 import { PNG_WIDTHS, PREVIEW_BGS, PREVIEW_BG_IDS, type PreviewBg } from "@/lib/vectorView";
 import FloatingPanel from "./FloatingPanel";
 import LicenseModal from "./LicenseModal";
 import SvgHub from "./SvgHub";
 import VectorConfig from "./VectorConfig";
 import VectorPromptModal from "./VectorPromptModal";
+import VectorSelected from "./VectorSelected";
 import { btn, card, field } from "./ui";
 
 const oneOf = (list: readonly unknown[]) => (v: unknown) => list.includes(v);
@@ -25,6 +26,9 @@ export default function VectorStudio() {
   const [licenseOpen, setLicenseOpen] = useState(false);
   const [licenseNotice, setLicenseNotice] = useState<string | null>(null);
   const [hover, setHover] = useState<number[] | null>(null);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const hitCache = useRef<{ svg: string; map: HitMap | null } | null>(null);
   const [previewBg, setPreviewBg] = usePersistentState<PreviewBg>("vector:previewbg", "checker", oneOf(PREVIEW_BG_IDS));
   const [pngWidth, setPngWidth] = usePersistentState("vector:pngwidth", 2048, isPngWidth);
   const [withBg, setWithBg] = usePersistentState("vector:withbg", false, (x) => typeof x === "boolean");
@@ -33,6 +37,73 @@ export default function VectorStudio() {
 
   const size = useMemo(() => (v.svg ? viewBoxSize(v.svg) : { width: 1, height: 1 }), [v.svg]);
   const partCount = useMemo(() => (v.svg ? getParts(v.svg).length : 0), [v.svg]);
+  const shapeSig = useMemo(
+    () => (v.svg ? getParts(v.svg).map((p) => p.tag).join(",") : ""),
+    [v.svg]
+  );
+
+  const getHit = async (svg: string): Promise<HitMap | null> => {
+    if (hitCache.current?.svg === svg) return hitCache.current.map;
+    let map: HitMap | null = null;
+    try {
+      map = await rasterizeHit(svg);
+    } catch {}
+    hitCache.current = { svg, map };
+    return map;
+  };
+
+  useEffect(() => {
+    setSelected(null);
+  }, [shapeSig]);
+
+  useEffect(() => {
+    if (selected === null || !v.svg) {
+      setBox(null);
+      return;
+    }
+    let live = true;
+    const id = setTimeout(() => {
+      void getHit(v.svg).then((map) => {
+        if (live) setBox(map ? hitBounds(map, selected) : null);
+      });
+    }, 150);
+    return () => {
+      live = false;
+      clearTimeout(id);
+    };
+  }, [selected, v.svg]);
+
+  const { undo, redo, canUndo, canRedo } = v;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const key = e.key.toLowerCase();
+      const target = e.target as HTMLElement | null;
+      const typing =
+        target?.tagName === "TEXTAREA" ||
+        (target?.tagName === "INPUT" && !["color", "checkbox", "range", "radio", "button"].includes((target as HTMLInputElement).type));
+      if (typing || target?.isContentEditable) return;
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if (key === "y" || (key === "z" && e.shiftKey)) {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
+
+  const pick = async (e: MouseEvent<HTMLDivElement>) => {
+    if (!v.svg) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const nx = (e.clientX - rect.left) / rect.width;
+    const ny = (e.clientY - rect.top) / rect.height;
+    const map = await getHit(v.svg);
+    setSelected(map ? hitIndexAt(map, nx, ny) : null);
+  };
   const previewSrc = useMemo(
     () => (v.svg ? toDataUrl(hover && hover.length > 0 ? dimOthers(v.svg, hover) : v.svg) : ""),
     [v.svg, hover]
@@ -51,6 +122,7 @@ export default function VectorStudio() {
     }
     const outcome = await v.generate(prompt, license.code);
     if (outcome.status === "rejected") setTerminalOpen(true);
+    if (outcome.status === "ok") setSelected(null);
     if (outcome.status === "license") {
       license.refresh();
       needLicense(outcome.message ?? "Lisensi tidak valid.");
@@ -103,6 +175,8 @@ export default function VectorStudio() {
           <VectorConfig
             svg={v.svg}
             onSvgChange={v.editSvg}
+            selected={selected}
+            onSelect={setSelected}
             onHover={setHover}
             previewBg={previewBg}
             onPreviewBg={setPreviewBg}
@@ -134,19 +208,50 @@ export default function VectorStudio() {
             </p>
           )}
 
-          <div className={`${card} p-3`}>
+          <div className={`${card} space-y-2 p-3`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-bold opacity-70">
+                {v.svg ? "👆 Klik bagian gambar untuk memilih dan mengubah warnanya." : "\u00a0"}
+              </p>
+              <div className="flex gap-1.5">
+                <button onClick={undo} disabled={!canUndo} aria-label="Urungkan" title="Urungkan (Ctrl+Z)" className={btn.small}>
+                  ↶ Urungkan
+                </button>
+                <button onClick={redo} disabled={!canRedo} aria-label="Ulangi" title="Ulangi (Ctrl+Y)" className={btn.small}>
+                  ↷ Ulangi
+                </button>
+              </div>
+            </div>
             <div
               className="flex min-h-[320px] items-center justify-center rounded-lg border-[3px] border-ink p-3"
               style={PREVIEW_BGS[previewBg].style}
             >
               {previewSrc ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={previewSrc}
-                  alt="Pratinjau gambar vector"
-                  style={{ aspectRatio: `${size.width} / ${size.height}` }}
-                  className="max-h-[70vh] w-full object-contain"
-                />
+                <div
+                  className="relative select-none"
+                  style={{ aspectRatio: `${size.width} / ${size.height}`, width: `min(100%, calc(70vh * ${size.width / size.height}))` }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={previewSrc} alt="Pratinjau gambar vector" draggable={false} className="block h-full w-full" />
+                  <div
+                    data-testid="pick-layer"
+                    onClick={(e) => void pick(e)}
+                    className="absolute inset-0 cursor-crosshair"
+                    aria-hidden="true"
+                  />
+                  {box && selected !== null && (
+                    <div
+                      data-testid="selection-box"
+                      className="pointer-events-none absolute border-2 border-dashed border-pink outline outline-1 outline-black"
+                      style={{
+                        left: `${box.x * 100}%`,
+                        top: `${box.y * 100}%`,
+                        width: `${box.w * 100}%`,
+                        height: `${box.h * 100}%`,
+                      }}
+                    />
+                  )}
+                </div>
               ) : (
                 <p className="max-w-sm rounded-lg border-[3px] border-ink bg-card p-3 text-center text-xs font-bold text-ink">
                   Belum ada gambar. Klik 📝 Prompt AI untuk membuat, atau buka 🖥️ Terminal untuk menempel kode SVG.
@@ -154,6 +259,8 @@ export default function VectorStudio() {
               )}
             </div>
           </div>
+
+          <VectorSelected svg={v.svg} selected={selected} onChange={v.editSvg} onSelect={setSelected} />
 
           <div className={`${card} space-y-3 p-3`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -182,6 +289,7 @@ export default function VectorStudio() {
                 <button
                   onClick={() => {
                     setHover(null);
+                    setSelected(null);
                     v.clearImage();
                   }}
                   disabled={!v.svg}
